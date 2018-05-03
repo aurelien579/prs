@@ -26,5 +26,6 @@ void tcp_close();
 Socket *tcp_accept(Socket *sock, struct sockaddr_in *distant_addr);
 
 ssize_t tcp_send(Socket *s, const char *buffer, size_t sz);
+ssize_t tcp_recv(Socket *s, char *out, size_t sz);
 
 #endif

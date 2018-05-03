@@ -1,5 +1,6 @@
 #include "tcp.h"
 #include "log.h"
+#include "utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,6 +27,7 @@
     #define ERROR(...)
     #define ERRNO(...)
 #endif
+
 
 static Socket *tcp_socket_new(int fd)
 {
@@ -114,7 +116,7 @@ void tcp_bind(Socket *sock, const char *ip, u16 port)
 Socket *tcp_socket()
 {
     int fd, yes = 1;
-    
+
     DEBUG("Creating TCP socket");
 
     fd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -125,9 +127,10 @@ Socket *tcp_socket()
     return tcp_socket_new(fd);
 }
 
-void tcp_close()
+void tcp_close(Socket *socket)
 {
-    
+    send_data(socket, "FIN", 3);
+    close(socket->fd);
 }
 
 Socket *tcp_accept(Socket *sock, struct sockaddr_in *distant_addr)
@@ -135,7 +138,7 @@ Socket *tcp_accept(Socket *sock, struct sockaddr_in *distant_addr)
     char buffer[BUFSIZE];
     ssize_t ret;
     Socket *new_sock;
-    socklen_t addrlen;
+    socklen_t addrlen = sizeof(struct sockaddr_in);
     u16 new_port;
 
     /* Receiving first SYN */
@@ -151,7 +154,7 @@ Socket *tcp_accept(Socket *sock, struct sockaddr_in *distant_addr)
         return NULL;
     }
 
-    DEBUG("SYN received");
+    DEBUG("SYN received from : %s", inet_ntoa(distant_addr->sin_addr));
 
     /* Creating the new dedicated socket */
     new_sock = create_dedicated_socket(distant_addr, &new_port);
@@ -164,8 +167,8 @@ Socket *tcp_accept(Socket *sock, struct sockaddr_in *distant_addr)
 
     /* Sending the dedicated port number */
     associate_socket(sock, distant_addr);
-    snprintf(buffer, BUFSIZE, "SYN-ACK%d", new_port);
-    ret = send_data(sock, buffer, BUFSIZE);
+    ret = snprintf(buffer, BUFSIZE, "SYN-ACK%d", new_port);
+    ret = send_data(sock, buffer, ret);
     if (ret < 0) {
         ERRNO("Can't send SYN");
         tcp_close(new_sock);
@@ -187,14 +190,40 @@ Socket *tcp_accept(Socket *sock, struct sockaddr_in *distant_addr)
         return NULL;
     }
     DEBUG("Last ACK received, connection established");
-    
-    
+
     disassociate_socket(sock);
 
     return new_sock;
 }
 
-ssize_t tcp_send(Socket *s, const char *buffer, size_t sz)
+ssize_t tcp_send(Socket *s, const char *in, size_t sz)
 {
-    return send_data(s, buffer, sz);
+    char buffer[BUFSIZE+6];
+    char ack[9];
+    ssize_t ret;
+    snprintf(buffer, BUFSIZE+6, "%06d", s->snd_nxt);
+    u8 acked = 0;
+
+    sz = min(sz, BUFSIZE);
+    memcpy(buffer+6, in, sz);
+
+
+    snprintf(ack, 9, "ACK%06d", s->snd_nxt);
+
+    while (1) {
+        ret = send_data(s, buffer, sz + 6);
+
+        //recv_data(s, buffer, BUFSIZE);
+        acked = (strcmp(buffer, ack) == 0);
+        DEBUG("Received : %s", buffer);
+    }
+
+    s->snd_nxt += sz;
+
+    return ret;
+}
+
+ssize_t tcp_recv(Socket *s, char *out, size_t sz)
+{
+    return recv_data(s, out, sz);
 }
