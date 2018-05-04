@@ -17,12 +17,12 @@ static void _log(const char *level, const char *id, const char *msg, va_list arg
     char date_buf[32];
     time_t rawtime;
     struct tm *timeinfo;
-    
+
     time(&rawtime);
     timeinfo = localtime(&rawtime);
-    
+
     strftime(date_buf, sizeof(date_buf), "%H:%M:%S", timeinfo);
-    
+
     fprintf(out, "[%s] %s [%s] ", level, date_buf, id);
     vfprintf(out, msg, args);
     fprintf(out, "\n");
@@ -30,9 +30,13 @@ static void _log(const char *level, const char *id, const char *msg, va_list arg
 
 int log_init(const char *filename)
 {
-    log_file = fopen(filename, "a");
-    if (log_file == NULL) return -1;
-    
+    if (filename) {
+      log_file = fopen(filename, "a");
+      if (log_file == NULL) return -1;
+    } else {
+      log_file = stdout;
+    }
+
     return 0;
 }
 

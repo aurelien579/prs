@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <stddef.h>
 #include <unistd.h>
+#include <sys/time.h>
 
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -28,6 +29,9 @@
     #define ERRNO(...)
 #endif
 
+#define HEADER_SIZE     6
+#define DATA_SIZE       BUFSIZE
+#define PACKET_SIZE     (DATA_SIZE + HEADER_SIZE)
 
 static Socket *tcp_socket_new(int fd)
 {
@@ -45,7 +49,7 @@ static ssize_t send_data(Socket *sock, const char *data, size_t sz)
 {
     ssize_t ret;
 
-    ret = send(sock->fd, data, sz+1, 0);
+    ret = send(sock->fd, data, sz, 0);
 
     return ret;
 }
@@ -101,6 +105,48 @@ static Socket *create_dedicated_socket(struct sockaddr_in *distant, u16 *port)
     associate_socket(sock, distant);
 
     return sock;
+}
+
+static u16 recv_ack(Socket *s)
+{
+    char buffer[10];
+
+    recv_data(s, buffer, sizeof(buffer));
+    return (u16) atoi(buffer + 3);
+}
+
+static int set_socket_timeout(Socket *s, int secs, int usecs)
+{
+    struct timeval tv;
+    tv.tv_sec = secs;
+    tv.tv_usec = usecs;
+    return setsockopt(s->fd, SOL_SOCKET, SO_RCVTIMEO, (const char *) &tv, sizeof(tv));
+}
+
+static ssize_t send_and_retransmit(Socket *s, const char *in, size_t data_size)
+{
+    u16 ack = 0;
+    ssize_t ret;
+
+    set_socket_timeout(s, 0, 1000);
+
+    while (ack != s->snd_nxt) {
+        DEBUG("Sending packet (seq = %d, size = %d)", s->snd_nxt, data_size);
+
+        ret = send_data(s, in, data_size + 6);
+        ack = recv_ack(s);
+
+        DEBUG("ACK Received : %d", ack);
+    }
+
+    return ret;
+}
+
+static void make_packet(char *packet, const char *data, size_t sz, u16 seq)
+{
+    memset(packet, 0, PACKET_SIZE);
+    snprintf(packet, PACKET_SIZE, "%06d", seq);
+    memcpy(packet + HEADER_SIZE, data, sz);
 }
 
 void tcp_bind(Socket *sock, const char *ip, u16 port)
@@ -196,31 +242,18 @@ Socket *tcp_accept(Socket *sock, struct sockaddr_in *distant_addr)
     return new_sock;
 }
 
+/* sz < BUFSIZE !!! */
 ssize_t tcp_send(Socket *s, const char *in, size_t sz)
 {
-    char buffer[BUFSIZE+6];
-    char ack[10];
+    char packet[PACKET_SIZE];
     ssize_t ret;
-    snprintf(buffer, BUFSIZE+6, "%06d", s->snd_nxt);
-    u8 acked = 0;
 
-    sz = min(sz, BUFSIZE);
-    memcpy(buffer+6, in, sz);
+    if (sz > DATA_SIZE) return -1;
 
-    snprintf(ack, 10, "ACK%06d", s->snd_nxt);
+    make_packet(packet, in, sz, s->snd_nxt);
+    ret = send_and_retransmit(s, packet, sz);
 
-    DEBUG("Waiting for : %s", ack);
-
-    while (!acked) {
-        DEBUG("Sending : %s", buffer);
-        ret = send_data(s, buffer, sz + 5);
-
-        recv_data(s, buffer, BUFSIZE);
-        acked = (strcmp(buffer, ack) == 0);
-        DEBUG("Received : %s", buffer);
-    }
-
-    s->snd_nxt += 1;
+    s->snd_nxt++;
 
     return ret;
 }

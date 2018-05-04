@@ -29,12 +29,32 @@ size_t fread_at(FILE *file, char *out, size_t sz, long pos)
     return fread(out, 1, sz, file);
 }
 
+int send_file(const char *filename, Socket *s)
+{
+    char buffer[BUFSIZE];
+    size_t size;
+    FILE *file = fopen(filename, "r");
+
+    if (!file) {
+        ERRNO("Can't open file : %s", buffer);
+        return -1;
+    }
+
+    while ((size = fread(buffer, 1, BUFSIZE, file)) > 0) {
+        DEBUG("Read %d bytes", size);
+        tcp_send(s, buffer, size);
+    }
+
+    DEBUG("File sent, last ret = %d", size);
+
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     u16 port;
     char buffer[BUFSIZE];
-    ssize_t ret;
-    FILE *file;
+    struct sockaddr_in distant;
 
     if (argc < 2) usage(argv[0]);
 
@@ -42,8 +62,6 @@ int main(int argc, char **argv)
 
     log_init(NULL);
     DEBUG("Server start");
-
-    struct sockaddr_in distant;
 
     Socket *socket = tcp_socket();
     tcp_bind(socket, "0.0.0.0", port);
@@ -53,21 +71,10 @@ int main(int argc, char **argv)
     tcp_recv(other, buffer, BUFSIZE);
     DEBUG("Sending file : %s", buffer);
 
-    file = fopen(buffer, "r");
+    send_file(buffer, other);
 
-    if (!file) {
-        ERRNO("Can't open file : %s", buffer);
-        tcp_close(socket);
-        tcp_close(other);
-        return -1;
-    }
-
-    while ((ret = fread(buffer, 1, BUFSIZE, file)) > 0) {
-        tcp_send(other, buffer, ret);
-    }
-
-    tcp_close(other);
     tcp_close(socket);
+    tcp_close(other);
 
     DEBUG("Server close");
     return 0;

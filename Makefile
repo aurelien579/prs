@@ -1,5 +1,5 @@
 CC		:= gcc
-CFLAGS	:= -Wall -Wno-unused-function -std=c11
+CFLAGS	:= -Wall -Wno-unused-function -std=c11 -g
 LFLAGS	:=
 OBJECTS := build/utils.o 		\
 		   build/tcp.o			\
