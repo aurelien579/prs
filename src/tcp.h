@@ -21,7 +21,7 @@ typedef struct tcp_socket Socket;
 
 Socket *tcp_socket();
 void tcp_bind(Socket *sock, const char *ip, u16 port);
-void tcp_close();
+void tcp_close(Socket *s);
 
 Socket *tcp_accept(Socket *sock, struct sockaddr_in *distant_addr);
 

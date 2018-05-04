@@ -37,7 +37,7 @@ static Socket *tcp_socket_new(int fd)
     memset(sock, 0, sizeof(Socket));
 
     sock->fd = fd;
-
+    sock -> snd_nxt=1;
     return sock;
 }
 
@@ -45,7 +45,7 @@ static ssize_t send_data(Socket *sock, const char *data, size_t sz)
 {
     ssize_t ret;
 
-    ret = send(sock->fd, data, sz, 0);
+    ret = send(sock->fd, data, sz+1, 0);
 
     return ret;
 }
@@ -199,7 +199,7 @@ Socket *tcp_accept(Socket *sock, struct sockaddr_in *distant_addr)
 ssize_t tcp_send(Socket *s, const char *in, size_t sz)
 {
     char buffer[BUFSIZE+6];
-    char ack[9];
+    char ack[10];
     ssize_t ret;
     snprintf(buffer, BUFSIZE+6, "%06d", s->snd_nxt);
     u8 acked = 0;
@@ -207,18 +207,20 @@ ssize_t tcp_send(Socket *s, const char *in, size_t sz)
     sz = min(sz, BUFSIZE);
     memcpy(buffer+6, in, sz);
 
+    snprintf(ack, 10, "ACK%06d", s->snd_nxt);
 
-    snprintf(ack, 9, "ACK%06d", s->snd_nxt);
+    DEBUG("Waiting for : %s", ack);
 
-    while (1) {
-        ret = send_data(s, buffer, sz + 6);
+    while (!acked) {
+        DEBUG("Sending : %s", buffer);
+        ret = send_data(s, buffer, sz + 5);
 
-        //recv_data(s, buffer, BUFSIZE);
+        recv_data(s, buffer, BUFSIZE);
         acked = (strcmp(buffer, ack) == 0);
         DEBUG("Received : %s", buffer);
     }
 
-    s->snd_nxt += sz;
+    s->snd_nxt += 1;
 
     return ret;
 }
