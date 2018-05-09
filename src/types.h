@@ -13,4 +13,9 @@ typedef int16_t     i16;
 typedef int32_t     i32;
 typedef int64_t     i64;
 
+
+typedef unsigned long long ulong_t;
+
+typedef struct tcp_socket Socket;
+
 #endif

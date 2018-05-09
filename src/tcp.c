@@ -1,6 +1,7 @@
 #include "tcp.h"
 #include "log.h"
 #include "utils.h"
+#include "consts.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,6 +15,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+
 
 #if LOG_LEVEL >= LOG_DEBUG
     #define DEBUG(...)   log_debug("TCP", __VA_ARGS__)
@@ -29,10 +31,6 @@
     #define ERRNO(...)
 #endif
 
-#define HEADER_SIZE     6
-#define DATA_SIZE       BUFSIZE
-#define PACKET_SIZE     (DATA_SIZE + HEADER_SIZE)
-
 static Socket *tcp_socket_new(int fd)
 {
     Socket *sock;
@@ -41,7 +39,13 @@ static Socket *tcp_socket_new(int fd)
     memset(sock, 0, sizeof(Socket));
 
     sock->fd = fd;
-    sock -> snd_nxt=1;
+    sock->snd_nxt = 1;
+    sock->snd_wnd = WINDOW_SIZE;
+    sock->snd_una = 0;
+    sock->que_nxt = 1;
+
+    sock->srtt = INITRTT;
+
     return sock;
 }
 
@@ -107,12 +111,12 @@ static Socket *create_dedicated_socket(struct sockaddr_in *distant, u16 *port)
     return sock;
 }
 
-static u16 recv_ack(Socket *s)
+int recv_ack(Socket *s)
 {
     char buffer[10];
 
     recv_data(s, buffer, sizeof(buffer));
-    return (u16) atoi(buffer + 3);
+    return atoi(buffer + 3);
 }
 
 static int set_socket_timeout(Socket *s, int secs, int usecs)
@@ -121,25 +125,6 @@ static int set_socket_timeout(Socket *s, int secs, int usecs)
     tv.tv_sec = secs;
     tv.tv_usec = usecs;
     return setsockopt(s->fd, SOL_SOCKET, SO_RCVTIMEO, (const char *) &tv, sizeof(tv));
-}
-
-static ssize_t send_and_retransmit(Socket *s, const char *in, size_t data_size)
-{
-    u16 ack = 0;
-    ssize_t ret;
-
-    set_socket_timeout(s, 0, 1000);
-
-    while (ack != s->snd_nxt) {
-        DEBUG("Sending packet (seq = %d, size = %d)", s->snd_nxt, data_size);
-
-        ret = send_data(s, in, data_size + 6);
-        ack = recv_ack(s);
-
-        DEBUG("ACK Received : %d", ack);
-    }
-
-    return ret;
 }
 
 static void make_packet(char *packet, const char *data, size_t sz, u16 seq)
@@ -171,12 +156,6 @@ Socket *tcp_socket()
     setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
 
     return tcp_socket_new(fd);
-}
-
-void tcp_close(Socket *socket)
-{
-    send_data(socket, "FIN", 3);
-    close(socket->fd);
 }
 
 Socket *tcp_accept(Socket *sock, struct sockaddr_in *distant_addr)
@@ -239,26 +218,96 @@ Socket *tcp_accept(Socket *sock, struct sockaddr_in *distant_addr)
 
     disassociate_socket(sock);
 
+    queue_init(&new_sock->queue);
+    clock_init(&new_sock->clock, new_sock, CLK_US);
+    recv_thread_init(&new_sock->recv_thread, new_sock);
+
     return new_sock;
 }
 
-/* sz < BUFSIZE !!! */
-ssize_t tcp_send(Socket *s, const char *in, size_t sz)
+void tcp_close(Socket *socket)
 {
-    char packet[PACKET_SIZE];
+    send_data(socket, "FIN", 4);
+    close(socket->fd);
+}
+
+static ssize_t send_and_retransmit(Socket *s, const char *in, size_t data_size)
+{
+    u16 ack = 0;
     ssize_t ret;
 
-    if (sz > DATA_SIZE) return -1;
+    set_socket_timeout(s, 0, 1000);
 
-    make_packet(packet, in, sz, s->snd_nxt);
-    ret = send_and_retransmit(s, packet, sz);
+    while (ack != s->snd_nxt) {
+        DEBUG("Sending packet (seq = %d, size = %d)", s->snd_nxt, data_size);
 
-    s->snd_nxt++;
+        ret = send_data(s, in, data_size + 6);
+        ack = recv_ack(s);
+
+        DEBUG("ACK Received : %d", ack);
+    }
 
     return ret;
+}
+
+/* sz < BUFSIZE !!! */
+void tcp_send(Socket *s, const char *in, size_t sz)
+{
+    char        packet[PACKET_SIZE];
+    QueueEntry *entry;
+
+    if (sz > DATA_SIZE) return;
+
+    make_packet(packet, in, sz, s->que_nxt);
+    entry = queue_entry_new(packet, s->que_nxt, sz + HEADER_SIZE, 0, 0);
+    s->que_nxt++;
+
+    pthread_mutex_lock(&s->queue.mutex);
+    queue_insert_ordered(&s->queue, entry);
+    pthread_mutex_unlock(&s->queue.mutex);
+
+    tcp_output(s);
 }
 
 ssize_t tcp_recv(Socket *s, char *out, size_t sz)
 {
     return recv_data(s, out, sz);
+}
+
+void tcp_output(Socket *sock)
+{
+    QueueEntry *entry;
+
+    pthread_mutex_lock(&sock->queue.mutex);
+
+    entry = sock->queue.top;
+
+    while (entry) {
+        if (entry->tx_time == 0) {
+            if (entry->tx_count != 0 || sock->snd_nxt < sock->snd_una + sock->snd_wnd) {
+                send(sock->fd, entry->packet, entry->size, 0);
+
+                if (entry->tx_count == 0) {
+                    printf("SEND %d\n", entry->seq);
+                    sock->snd_nxt++;
+                } else {
+                    printf("RESEND %d %d\n", entry->seq, entry->tx_count);
+
+                }
+
+                entry->tx_count++;
+                entry->tx_time = sock->srtt;
+            }
+        }
+
+        entry = entry->next;
+    }
+
+    pthread_mutex_unlock(&sock->queue.mutex);
+}
+
+void tcp_wait(Socket *sock)
+{
+    while (sock->queue.top) {
+    }
 }

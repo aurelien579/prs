@@ -1,9 +1,12 @@
 CC		:= gcc
-CFLAGS	:= -Wall -Wno-unused-function -std=c11 -g
-LFLAGS	:=
+CFLAGS	:= -Wall -Wno-unused-function -std=c11 -g -D_DEFAULT_SOURCE
+LFLAGS	:= -pthread
 OBJECTS := build/utils.o 		\
 		   build/tcp.o			\
-		   build/log.o
+		   build/log.o			\
+		   build/clock.o		\
+		   build/queue.o		\
+		   build/recv.o
 
 all: bin/server1
 

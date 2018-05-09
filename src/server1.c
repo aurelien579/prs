@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include "queue.h"
+
 #if LOG_LEVEL >= LOG_DEBUG
     #define DEBUG(...)   log_debug("SRV", __VA_ARGS__)
 #else
@@ -41,13 +43,38 @@ int send_file(const char *filename, Socket *s)
     }
 
     while ((size = fread(buffer, 1, BUFSIZE, file)) > 0) {
-        DEBUG("Read %d bytes", size);
         tcp_send(s, buffer, size);
     }
+
+    tcp_wait(s);
 
     DEBUG("File sent, last ret = %d", size);
 
     return 0;
+}
+
+
+
+void test()
+{
+    char *data = "test";
+    Queue q;
+    queue_init(&q);
+
+    queue_insert_ordered(&q, queue_entry_new(data, 0, 0, 0, 0));
+    queue_insert_ordered(&q, queue_entry_new(data, 1, 0, 0, 0));
+    queue_insert_ordered(&q, queue_entry_new(data, 2, 0, 0, 0));
+    queue_insert_ordered(&q, queue_entry_new(data, 3, 0, 0, 0));
+    queue_insert_ordered(&q, queue_entry_new(data, 4, 0, 0, 0));
+    queue_insert_ordered(&q, queue_entry_new(data, 5, 0, 0, 0));
+
+    queue_print(&q);
+
+    queue_remove(&q, 1);
+
+    queue_print(&q);
+
+    exit(0);
 }
 
 int main(int argc, char **argv)
