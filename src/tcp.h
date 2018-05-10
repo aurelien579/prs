@@ -17,6 +17,7 @@ struct tcp_socket
     int snd_nxt;        /* Next sequence number to send */
     int snd_una;        /* First unacknoledged sequence number */
     int snd_wnd;        /* Send window size => snd_una + snd_wnd < snd_nxt */
+    int ssthresh;
 
     int que_nxt;
 
@@ -26,6 +27,7 @@ struct tcp_socket
     RecvThread recv_thread;
 
     ulong_t srtt;       /* Smoothed RTT in usecs */
+    ulong_t rttvar;
 };
 
 typedef struct tcp_socket Socket;

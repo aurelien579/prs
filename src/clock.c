@@ -22,11 +22,12 @@ static void *clock_thread(void *_clk)
         entry = queue->top;
 
         while (entry) {
-            if (entry->tx_time > clk->usecs) {
-                entry->tx_time -= clk->usecs;
+            if (entry->rtx_usecs > clk->usecs) {
+                entry->rtx_usecs -= clk->usecs;
             } else {
-                entry->tx_time = 0;
-                should_send = 1;
+                entry->rtx_usecs = 0;
+                if (entry->rtx_count > 0)
+                    should_send = 1;
             }
 
             entry = entry->next;

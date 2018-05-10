@@ -2,6 +2,7 @@
 #define CLOCK_H
 
 #include <pthread.h>
+#include <sys/time.h>
 
 #include "types.h"
 

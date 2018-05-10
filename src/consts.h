@@ -9,8 +9,12 @@
 
 #define BUFSIZE         DATA_SIZE
 
-#define INITRTT         1000*1000
+#define INITRTT         1000*25
 
-#define WINDOW_SIZE     3
+#define INIT_WINDOW     10
+
+#define ALPHA           0.125
+#define BETA            0.25
+#define K               1
 
 #endif

@@ -38,7 +38,7 @@ int send_file(const char *filename, Socket *s)
     FILE *file = fopen(filename, "r");
 
     if (!file) {
-        ERRNO("Can't open file : %s", buffer);
+        ERRNO("Can't open file : %s", filename);
         return -1;
     }
 

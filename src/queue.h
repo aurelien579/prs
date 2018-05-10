@@ -2,6 +2,7 @@
 #define QUEUE_H
 
 #include <sys/types.h>
+#include <sys/time.h>
 #include <pthread.h>
 
 #include "types.h"
@@ -13,8 +14,9 @@ struct queue_entry
     int     seq;
     size_t  size;
 
-    ulong_t tx_time;
-    int     tx_count;
+    struct timeval tx_time;
+    ulong_t rtx_usecs;
+    int     rtx_count;
 
     struct queue_entry *next;
 };
@@ -29,7 +31,10 @@ struct queue
 
 typedef struct queue Queue;
 
-QueueEntry *queue_entry_new(const char *packet, int seq, size_t size, ulong_t tx_time, int tx_count);
+QueueEntry *queue_entry_new(const char *packet, int seq, size_t size,
+                            ulong_t tx_time, int tx_count);
+
+QueueEntry *queue_get(Queue *queue, int seq);
 
 void queue_init(Queue *queue);
 void queue_insert_ordered(Queue *queue, QueueEntry *entry);

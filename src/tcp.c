@@ -40,8 +40,8 @@ static Socket *tcp_socket_new(int fd)
 
     sock->fd = fd;
     sock->snd_nxt = 1;
-    sock->snd_wnd = WINDOW_SIZE;
-    sock->snd_una = 0;
+    sock->snd_wnd = INIT_WINDOW;
+    sock->snd_una = 1;
     sock->que_nxt = 1;
 
     sock->srtt = INITRTT;
@@ -266,7 +266,8 @@ void tcp_send(Socket *s, const char *in, size_t sz)
     queue_insert_ordered(&s->queue, entry);
     pthread_mutex_unlock(&s->queue.mutex);
 
-    tcp_output(s);
+    if (s->snd_nxt < s->snd_una + s->snd_wnd)
+        tcp_output(s);
 }
 
 ssize_t tcp_recv(Socket *s, char *out, size_t sz)
@@ -283,20 +284,21 @@ void tcp_output(Socket *sock)
     entry = sock->queue.top;
 
     while (entry) {
-        if (entry->tx_time == 0) {
-            if (entry->tx_count != 0 || sock->snd_nxt < sock->snd_una + sock->snd_wnd) {
+        if (entry->rtx_usecs == 0) {
+            if (entry->rtx_count != 0 || sock->snd_nxt < sock->snd_una + sock->snd_wnd) {
                 send(sock->fd, entry->packet, entry->size, 0);
 
-                if (entry->tx_count == 0) {
+                if (entry->rtx_count == 0) {
                     printf("SEND %d\n", entry->seq);
                     sock->snd_nxt++;
                 } else {
-                    printf("RESEND %d %d\n", entry->seq, entry->tx_count);
-
+                    printf("RESEND %d %d\n", entry->seq, entry->rtx_count);
+                    //sock->snd_wnd /= 2;
                 }
 
-                entry->tx_count++;
-                entry->tx_time = sock->srtt;
+                entry->rtx_count++;
+                entry->rtx_usecs = sock->srtt + K*sock->rttvar;
+                gettimeofday(&entry->tx_time, NULL);
             }
         }
 
@@ -309,5 +311,6 @@ void tcp_output(Socket *sock)
 void tcp_wait(Socket *sock)
 {
     while (sock->queue.top) {
+        //usleep(10);
     }
 }
