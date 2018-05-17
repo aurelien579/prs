@@ -19,44 +19,60 @@ QueueEntry *queue_entry_new(const char *packet, int seq, size_t size, ulong_t rt
     return entry;
 }
 
-void queue_init(Queue *queue)
+void queue_init(Queue *queue, size_t sz)
 {
     queue->top = NULL;
+    queue->last = NULL;
+
+    sem_init(&queue->free, 0, sz);
     pthread_mutex_init(&queue->mutex, NULL);
 }
 
 void queue_insert_ordered(Queue *queue, QueueEntry *entry)
 {
-    QueueEntry *prev = NULL;
-    QueueEntry *cur = queue->top;
+    sem_wait(&queue->free);
 
-    if (!cur) {
+    pthread_mutex_lock(&queue->mutex);
+
+    if (!queue->last) {
+        queue->last = entry;
         queue->top = entry;
-        return;
+    } else {
+        queue->last->next = entry;
+        queue->last = entry;
     }
+
+    pthread_mutex_unlock(&queue->mutex);
+}
+
+void queue_remove_before(Queue *queue, int seq)
+{
+    pthread_mutex_lock(&queue->mutex);
+
+    QueueEntry *cur = queue->top;
+    QueueEntry *temp = NULL;
 
     while (cur) {
-        if (cur->seq > entry->seq)
-        {
-            entry->next = cur;
-            if (prev) {
-                prev->next = entry;
-            } else {
-                queue->top = entry;
-            }
-
-            return;
+        if (cur->seq > seq) break;
+        if (cur == queue->last) {
+            queue->last = NULL;
         }
 
-        prev = cur;
-        cur = cur->next;
+        temp = cur->next;
+        sem_post(&queue->free);
+        free(cur);
+        cur = temp;
     }
 
-    prev->next = entry;
+    queue->top = cur;
+
+    pthread_mutex_unlock(&queue->mutex);
 }
 
 void queue_remove(Queue *queue, int seq)
 {
+    pthread_mutex_lock(&queue->mutex);
+
     QueueEntry *cur = queue->top;
     QueueEntry *prev = NULL;
 
@@ -69,12 +85,16 @@ void queue_remove(Queue *queue, int seq)
             }
 
             free(cur);
+            sem_post(&queue->free);
+            pthread_mutex_unlock(&queue->mutex);
             return;
         }
 
         prev = cur;
         cur = cur->next;
     }
+
+    pthread_mutex_unlock(&queue->mutex);
 }
 
 QueueEntry *queue_get(Queue *queue, int seq)

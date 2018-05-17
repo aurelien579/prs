@@ -218,7 +218,7 @@ Socket *tcp_accept(Socket *sock, struct sockaddr_in *distant_addr)
 
     disassociate_socket(sock);
 
-    queue_init(&new_sock->queue);
+    queue_init(&new_sock->queue, MAX_WINDOW);
     clock_init(&new_sock->clock, new_sock, CLK_US);
     recv_thread_init(&new_sock->recv_thread, new_sock);
 
@@ -253,7 +253,7 @@ static ssize_t send_and_retransmit(Socket *s, const char *in, size_t data_size)
 /* sz < BUFSIZE !!! */
 void tcp_send(Socket *s, const char *in, size_t sz)
 {
-    char        packet[PACKET_SIZE];
+    char packet[PACKET_SIZE];
     QueueEntry *entry;
 
     if (sz > DATA_SIZE) return;
@@ -262,9 +262,7 @@ void tcp_send(Socket *s, const char *in, size_t sz)
     entry = queue_entry_new(packet, s->que_nxt, sz + HEADER_SIZE, 0, 0);
     s->que_nxt++;
 
-    pthread_mutex_lock(&s->queue.mutex);
     queue_insert_ordered(&s->queue, entry);
-    pthread_mutex_unlock(&s->queue.mutex);
 
     if (s->snd_nxt < s->snd_una + s->snd_wnd)
         tcp_output(s);

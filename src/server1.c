@@ -59,7 +59,7 @@ void test()
 {
     char *data = "test";
     Queue q;
-    queue_init(&q);
+    queue_init(&q, 45);
 
     queue_insert_ordered(&q, queue_entry_new(data, 0, 0, 0, 0));
     queue_insert_ordered(&q, queue_entry_new(data, 1, 0, 0, 0));

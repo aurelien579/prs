@@ -48,13 +48,9 @@ static void *__recv(void *_self)
 
         /*sock->snd_wnd++;
         printf("INCREASE\n");*/
-
-        for (int i = sock->snd_una; i <= ack; i++) {
-            printf("remove %d\n", i);
-            queue_remove(&sock->queue, i);
-        }
-
         pthread_mutex_unlock(&sock->queue.mutex);
+
+        queue_remove_before(&sock->queue, ack);
 
         sock->snd_una = ack + 1;
 

@@ -2,3 +2,5 @@ bin/server*
 build/*
 *.txt
 data/*
+small
+large

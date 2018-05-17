@@ -4,6 +4,7 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <pthread.h>
+#include <semaphore.h>
 
 #include "types.h"
 #include "consts.h"
@@ -26,6 +27,9 @@ typedef struct queue_entry QueueEntry;
 struct queue
 {
     QueueEntry *top;
+    QueueEntry *last;
+
+    sem_t free;
     pthread_mutex_t mutex;
 };
 
@@ -36,9 +40,10 @@ QueueEntry *queue_entry_new(const char *packet, int seq, size_t size,
 
 QueueEntry *queue_get(Queue *queue, int seq);
 
-void queue_init(Queue *queue);
+void queue_init(Queue *queue, size_t sz);
 void queue_insert_ordered(Queue *queue, QueueEntry *entry);
 void queue_remove(Queue *queue, int seq);
+void queue_remove_before(Queue *queue, int seq);
 
 void queue_print(Queue *queue);
 
