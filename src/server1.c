@@ -86,15 +86,14 @@ int main(int argc, char **argv)
     if (argc < 2) usage(argv[0]);
 
     port = (u16) atoi(argv[1]);
-
+    int pid=getpid();
     log_init(NULL);
     DEBUG("Server start");
 
     Socket *socket = tcp_socket();
     tcp_bind(socket, "0.0.0.0", port);
-
-    Socket *other = tcp_accept(socket, &distant);
-
+    Socket *other;
+    other = tcp_accept(socket, &distant);
     tcp_recv(other, buffer, BUFSIZE);
     DEBUG("Sending file : %s", buffer);
 

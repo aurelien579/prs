@@ -43,6 +43,7 @@ static Socket *tcp_socket_new(int fd)
     sock->snd_wnd = INIT_WINDOW;
     sock->snd_una = 1;
     sock->que_nxt = 1;
+    sock->ssthresh= 128;
 
     sock->srtt = INITRTT;
 
@@ -216,7 +217,7 @@ Socket *tcp_accept(Socket *sock, struct sockaddr_in *distant_addr)
     }
     DEBUG("Last ACK received, connection established");
 
-    disassociate_socket(sock);
+    //disassociate_socket(sock);
 
     queue_init(&new_sock->queue, MAX_WINDOW);
     clock_init(&new_sock->clock, new_sock, CLK_US);
@@ -280,7 +281,6 @@ void tcp_output(Socket *sock)
     pthread_mutex_lock(&sock->queue.mutex);
 
     entry = sock->queue.top;
-
     while (entry) {
         if (entry->rtx_usecs == 0) {
             if (entry->rtx_count != 0 || sock->snd_nxt < sock->snd_una + sock->snd_wnd) {
@@ -290,8 +290,11 @@ void tcp_output(Socket *sock)
                     printf("SEND %d\n", entry->seq);
                     sock->snd_nxt++;
                 } else {
-                    printf("RESEND %d %d\n", entry->seq, entry->rtx_count);
-                    //sock->snd_wnd /= 2;
+                    printf("RESEND %d %d\n", entry->seq, entry->rtx_count); // HOP ON DETECTE UNE COLLISION
+                    sock -> snd_wnd = max(10, sock ->snd_wnd - sock ->snd_wnd/4);
+                    if(entry->rtx_count==1){
+                      sock->ssthresh = max (5+(int)((sock->snd_nxt-sock->snd_una) / 2), 5+2);
+                    }
                 }
 
                 entry->rtx_count++;

@@ -1,6 +1,8 @@
 #include "recv.h"
 
 #include "tcp.h"
+#include "utils.h"
+#include "consts.h"
 
 #include <sys/time.h>
 #include <stdio.h>
@@ -10,16 +12,33 @@ static void *__recv(void *_self)
 {
     RecvThread *self = _self;
     Socket *sock = self->socket;
-
+    //FILE* fp = fopen ("log.txt", "w+");
     QueueEntry *entry;
     int ack;
     struct timeval tv;
     ulong_t rtt;
-
+    int ack_redondance=0;
     while (self->running) {
         ack = recv_ack(sock);
+        printf("WHILE\n");
+        if(ack == sock->previous_ack){
+          ack_redondance+=1;
+        }else{
+          ack_redondance=0;
+          sock->previous_ack = ack;
+        }
 
-        if (ack < sock->snd_una || ack >= sock->snd_una + sock->snd_nxt) {
+        if(ack_redondance>=3){
+          entry = queue_get(&sock->queue, ack+1);
+          sock -> snd_wnd += 1;
+          if(entry){
+            send(sock->fd, entry->packet, entry->size, 0);
+          }
+
+          continue;
+        }
+
+        if (ack < sock->snd_una || ack >= sock->snd_una + sock->snd_nxt) { // ack déjà reçu ou d'un segment non envoyé
             printf("invalid ack : %d\n", ack);
             continue;
         }
@@ -28,7 +47,7 @@ static void *__recv(void *_self)
 
         pthread_mutex_lock(&sock->queue.mutex);
 
-        gettimeofday(&tv, NULL);
+        gettimeofday(&tv, NULL); // calcul du rtt, srtt
         entry = queue_get(&sock->queue, ack);
         rtt = (tv.tv_usec - entry->tx_time.tv_usec) +
               (tv.tv_sec - entry->tx_time.tv_sec) * 1000000L;
@@ -51,6 +70,13 @@ static void *__recv(void *_self)
         pthread_mutex_unlock(&sock->queue.mutex);
 
         queue_remove_before(&sock->queue, ack);
+        if(sock->snd_wnd < sock -> ssthresh){
+          //fprintf(fp," ** THE WINDOW SS ** : %d and the ack gap : %d and the thresh : %d\n\n", sock->snd_wnd+1, ack-sock-> snd_una, sock->ssthresh);
+          sock -> snd_wnd += ack+1-sock->snd_una;
+        }else{
+          //fprintf(fp," ** THE WINDOW N ** : %d and the ack gap : %d and the thresh : %d\n\n", sock->snd_wnd+1, ack-sock-> snd_una, sock->ssthresh);
+          sock -> snd_wnd += 1;
+        }
 
         sock->snd_una = ack + 1;
 

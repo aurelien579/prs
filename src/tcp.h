@@ -18,6 +18,7 @@ struct tcp_socket
     int snd_una;        /* First unacknoledged sequence number */
     int snd_wnd;        /* Send window size => snd_una + snd_wnd < snd_nxt */
     int ssthresh;
+    int previous_ack;
 
     int que_nxt;
 

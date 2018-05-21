@@ -11,7 +11,7 @@
 
 #define INITRTT         1000*25
 
-#define INIT_WINDOW     10
+#define INIT_WINDOW     3
 #define MAX_WINDOW      50
 
 #define ALPHA           0.125
