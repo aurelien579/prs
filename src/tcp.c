@@ -43,7 +43,7 @@ static Socket *tcp_socket_new(int fd)
     sock->snd_wnd = INIT_WINDOW;
     sock->snd_una = 1;
     sock->que_nxt = 1;
-    sock->ssthresh= 128;
+    sock->ssthresh= INI_SSTRESH;
 
     sock->srtt = INITRTT;
 
@@ -291,10 +291,12 @@ void tcp_output(Socket *sock)
                     sock->snd_nxt++;
                 } else {
                     printf("RESEND %d %d\n", entry->seq, entry->rtx_count); // HOP ON DETECTE UNE COLLISION
-                    sock -> snd_wnd = max(10, sock ->snd_wnd - sock ->snd_wnd/4);
+#ifndef NO_CONGESTION
+                    sock -> snd_wnd = max(MIN_WINDOW, sock ->snd_wnd - sock ->snd_wnd/4);
                     if(entry->rtx_count==1){
-                      sock->ssthresh = max (5+(int)((sock->snd_nxt-sock->snd_una) / 2), 5+2);
+                      sock->ssthresh = max (SSTHRESH_OFFSET+(int)((sock->snd_nxt-sock->snd_una) / 2), MIN_SSTHRESH);
                     }
+#endif
                 }
 
                 entry->rtx_count++;

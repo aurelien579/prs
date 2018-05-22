@@ -21,6 +21,13 @@ static void *__recv(void *_self)
     while (self->running) {
         ack = recv_ack(sock);
         printf("WHILE\n");
+
+        if (ack < sock->snd_una || ack >= sock->snd_una + sock->snd_nxt) { // ack déjà reçu ou d'un segment non envoyé
+            printf("invalid ack : %d\n", ack);
+            continue;
+        }
+
+#ifndef NO_FAST_RETRANSMIT
         if(ack == sock->previous_ack){
           ack_redondance+=1;
         }else{
@@ -36,12 +43,8 @@ static void *__recv(void *_self)
           }
 
           continue;
-        }
-
-        if (ack < sock->snd_una || ack >= sock->snd_una + sock->snd_nxt) { // ack déjà reçu ou d'un segment non envoyé
-            printf("invalid ack : %d\n", ack);
-            continue;
-        }
+      }
+#endif
 
         printf("ack : %d\n", ack);
 
@@ -57,9 +60,9 @@ static void *__recv(void *_self)
             sock->rttvar = rtt / 2;
         } else {
             if (sock->srtt > rtt)
-                sock->rttvar = ((1 - BETA) * sock->rttvar) + (BETA * (sock->srtt - rtt));
+                sock->rttvar = ((1 - BETA) * sock->rttvar) + (BETA * (sock->srtt - rtt))+10000;
             else
-                sock->rttvar = ((1 - BETA) * sock->rttvar) + (BETA * (rtt - sock->srtt));
+                sock->rttvar = ((1 - BETA) * sock->rttvar) + (BETA * (rtt - sock->srtt))+10000;
             sock->srtt = (sock->srtt * (1 - ALPHA)) + (ALPHA * rtt);
         }
 
@@ -70,13 +73,16 @@ static void *__recv(void *_self)
         pthread_mutex_unlock(&sock->queue.mutex);
 
         queue_remove_before(&sock->queue, ack);
+
+#ifndef NO_CONGESTION
         if(sock->snd_wnd < sock -> ssthresh){
-          //fprintf(fp," ** THE WINDOW SS ** : %d and the ack gap : %d and the thresh : %d\n\n", sock->snd_wnd+1, ack-sock-> snd_una, sock->ssthresh);
-          sock -> snd_wnd += ack+1-sock->snd_una;
+           //fprintf(fp," ** THE WINDOW SS ** : %d and the ack gap : %d and the thresh : %d\n\n", sock->snd_wnd+1, ack-sock-> snd_una, sock->ssthresh);
+           sock -> snd_wnd += ack+1-sock->snd_una;
         }else{
-          //fprintf(fp," ** THE WINDOW N ** : %d and the ack gap : %d and the thresh : %d\n\n", sock->snd_wnd+1, ack-sock-> snd_una, sock->ssthresh);
-          sock -> snd_wnd += 1;
+           //fprintf(fp," ** THE WINDOW N ** : %d and the ack gap : %d and the thresh : %d\n\n", sock->snd_wnd+1, ack-sock-> snd_una, sock->ssthresh);
+           sock -> snd_wnd += 1;
         }
+#endif
 
         sock->snd_una = ack + 1;
 
