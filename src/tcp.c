@@ -17,6 +17,7 @@
 #include <netinet/in.h>
 
 
+
 #if LOG_LEVEL >= LOG_DEBUG
     #define DEBUG(...)   log_debug("TCP", __VA_ARGS__)
 #else
@@ -31,6 +32,8 @@
     #define ERRNO(...)
 #endif
 
+
+
 static Socket *tcp_socket_new(int fd)
 {
     Socket *sock;
@@ -43,7 +46,7 @@ static Socket *tcp_socket_new(int fd)
     sock->snd_wnd = INIT_WINDOW;
     sock->snd_una = 1;
     sock->que_nxt = 1;
-    sock->ssthresh= INI_SSTRESH;
+    sock->ssthresh = INI_SSTRESH;
 
     sock->srtt = INITRTT;
 
@@ -52,20 +55,12 @@ static Socket *tcp_socket_new(int fd)
 
 static ssize_t send_data(Socket *sock, const char *data, size_t sz)
 {
-    ssize_t ret;
-
-    ret = send(sock->fd, data, sz, 0);
-
-    return ret;
+    return send(sock->fd, data, sz, 0);
 }
 
 static ssize_t recv_data(Socket *sock, char *data, size_t sz)
 {
-    ssize_t ret;
-
-    ret = recv(sock->fd, data, sz, 0);
-
-    return ret;
+    return recv(sock->fd, data, sz, 0);
 }
 
 static int associate_socket(Socket *s, struct sockaddr_in *addr)
@@ -131,7 +126,7 @@ static int set_socket_timeout(Socket *s, int secs, int usecs)
     return setsockopt(s->fd, SOL_SOCKET, SO_RCVTIMEO, (const char *) &tv, sizeof(tv));
 }
 
-static void make_packet(char *packet, const char *data, size_t sz, u16 seq)
+static void make_packet(char *packet, const char *data, size_t sz, seq_t seq)
 {
     memset(packet, 0, PACKET_SIZE);
     snprintf(packet, PACKET_SIZE, "%06d", seq);
@@ -230,37 +225,23 @@ void tcp_start_transfer(Socket *sock)
     queue_init(&sock->queue, MAX_WINDOW);
     clock_init(&sock->clock, sock, CLK_US);
     recv_thread_init(&sock->recv_thread, sock);
+    send_thread_init(&sock->send_thread, sock->fd, &sock->queue);
 }
 
 void tcp_close(Socket *socket)
 {
     recv_thread_stop(&socket->recv_thread);
-    for (int i = 0; i < 10; i++)
-        send_data(socket, "FIN", 4);
+
+    for (int i = 0; i < 10; i++) send_data(socket, "FIN", 4);
+
     close(socket->fd);
-
 }
 
-static ssize_t send_and_retransmit(Socket *s, const char *in, size_t data_size)
+ssize_t tcp_recv(Socket *s, char *out, size_t sz)
 {
-    u16 ack = 0;
-    ssize_t ret;
-
-    set_socket_timeout(s, 0, 1000);
-
-    while (ack != s->snd_nxt) {
-        DEBUG("Sending packet (seq = %d, size = %d)", s->snd_nxt, data_size);
-
-        ret = send_data(s, in, data_size + 6);
-        ack = recv_ack(s);
-
-        DEBUG("ACK Received : %d", ack);
-    }
-
-    return ret;
+    return recv_data(s, out, sz);
 }
 
-/* sz < BUFSIZE !!! */
 void tcp_send(Socket *s, const char *in, size_t sz)
 {
     char packet[PACKET_SIZE];
@@ -274,13 +255,8 @@ void tcp_send(Socket *s, const char *in, size_t sz)
 
     queue_insert_ordered(&s->queue, entry);
 
-    if (s->snd_nxt < s->snd_una + s->snd_wnd)
-        tcp_output(s);
-}
-
-ssize_t tcp_recv(Socket *s, char *out, size_t sz)
-{
-    return recv_data(s, out, sz);
+    /*if (s->snd_nxt < s->snd_una + s->snd_wnd)
+        tcp_output(s);*/
 }
 
 void tcp_output(Socket *sock)

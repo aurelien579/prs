@@ -4,7 +4,7 @@
 #include <string.h>
 #include <stdio.h>
 
-QueueEntry *queue_entry_new(const char *packet, int seq, size_t size, ulong_t rtx_usecs, int rtx_count)
+QueueEntry *queue_entry_new(const char *packet, seq_t seq, size_t size, ulong_t rtx_usecs, int rtx_count)
 {
     QueueEntry *entry = malloc(sizeof(QueueEntry));
 
@@ -45,7 +45,7 @@ void queue_insert_ordered(Queue *queue, QueueEntry *entry)
     pthread_mutex_unlock(&queue->mutex);
 }
 
-void queue_remove_before(Queue *queue, int seq)
+void queue_remove_before(Queue *queue, seq_t seq)
 {
     pthread_mutex_lock(&queue->mutex);
 
@@ -69,7 +69,7 @@ void queue_remove_before(Queue *queue, int seq)
     pthread_mutex_unlock(&queue->mutex);
 }
 
-void queue_remove(Queue *queue, int seq)
+void queue_remove(Queue *queue, seq_t seq)
 {
     pthread_mutex_lock(&queue->mutex);
 
@@ -97,7 +97,7 @@ void queue_remove(Queue *queue, int seq)
     pthread_mutex_unlock(&queue->mutex);
 }
 
-QueueEntry *queue_get(Queue *queue, int seq)
+QueueEntry *queue_get(Queue *queue, seq_t seq)
 {
     QueueEntry *cur = queue->top;
 

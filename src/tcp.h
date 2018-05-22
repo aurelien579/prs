@@ -5,27 +5,31 @@
 #include "queue.h"
 #include "clock.h"
 #include "recv.h"
+#include "send.h"
+
 
 #include <stdlib.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 
+
 struct tcp_socket
 {
     int fd;
 
-    int snd_nxt;        /* Next sequence number to send */
-    int snd_una;        /* First unacknoledged sequence number */
-    int snd_wnd;        /* Send window size => snd_una + snd_wnd < snd_nxt */
-    int ssthresh;
-    int previous_ack;
+    seq_t snd_nxt;        /* Next sequence number to send */
+    seq_t snd_una;        /* First unacknoledged sequence number */
+    seq_t snd_wnd;        /* Send window size => snd_una + snd_wnd < snd_nxt */
+    seq_t ssthresh;
+    seq_t previous_ack;
 
-    int que_nxt;
+    seq_t que_nxt;        /* Next segment in queue */
 
     Queue queue;
     Clock clock;
 
     RecvThread recv_thread;
+    SendThread send_thread;
 
     ulong_t srtt;       /* Smoothed RTT in usecs */
     ulong_t rttvar;

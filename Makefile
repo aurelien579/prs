@@ -6,7 +6,8 @@ OBJECTS := build/utils.o 		\
 		   build/log.o			\
 		   build/clock.o		\
 		   build/queue.o		\
-		   build/recv.o
+		   build/recv.o			\
+		   build/send.o			\
 
 all: server1 server2 server3
 

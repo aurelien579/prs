@@ -11,15 +11,15 @@
 
 struct queue_entry
 {
-    char    packet[PACKET_SIZE];
-    int     seq;
-    size_t  size;
+    char                packet[PACKET_SIZE];
+    seq_t               seq;
+    size_t              size;
 
-    struct timeval tx_time;
-    ulong_t rtx_usecs;
-    int     rtx_count;
+    struct timeval      tx_time;
+    ulong_t             rtx_usecs;
+    int                 rtx_count;
 
-    struct queue_entry *next;
+    struct queue_entry  *next;
 };
 
 typedef struct queue_entry QueueEntry;
@@ -35,15 +35,15 @@ struct queue
 
 typedef struct queue Queue;
 
-QueueEntry *queue_entry_new(const char *packet, int seq, size_t size,
+QueueEntry *queue_entry_new(const char *packet, seq_t seq, size_t size,
                             ulong_t tx_time, int tx_count);
 
-QueueEntry *queue_get(Queue *queue, int seq);
+QueueEntry *queue_get(Queue *queue, seq_t seq);
 
 void queue_init(Queue *queue, size_t sz);
 void queue_insert_ordered(Queue *queue, QueueEntry *entry);
-void queue_remove(Queue *queue, int seq);
-void queue_remove_before(Queue *queue, int seq);
+void queue_remove(Queue *queue, seq_t seq);
+void queue_remove_before(Queue *queue, seq_t seq);
 
 void queue_print(Queue *queue);
 
