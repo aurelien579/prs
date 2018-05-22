@@ -17,13 +17,13 @@ struct tcp_socket
 {
     int fd;
 
-    seq_t snd_nxt;        /* Next sequence number to send */
-    seq_t snd_una;        /* First unacknoledged sequence number */
-    seq_t snd_wnd;        /* Send window size => snd_una + snd_wnd < snd_nxt */
-    seq_t ssthresh;
-    seq_t previous_ack;
+    int snd_nxt;        /* Next sequence number to send */
+    int snd_una;        /* First unacknoledged sequence number */
+    int snd_wnd;        /* Send window size => snd_una + snd_wnd < snd_nxt */
+    int ssthresh;
+    int previous_ack;
 
-    seq_t que_nxt;        /* Next segment in queue */
+    int que_nxt;        /* Next segment in queue */
 
     Queue queue;
     Clock clock;
@@ -43,7 +43,7 @@ Socket *tcp_socket();
 void tcp_bind(Socket *sock, const char *ip, u16 port);
 void tcp_close(Socket *s);
 
-void tcp_start_transfer(Socket *sock);
+void tcp_start_transfer(Socket *sock, ulong_t sleep, int count);
 Socket *tcp_accept(Socket *sock, struct sockaddr_in *distant_addr);
 
 void tcp_send(Socket *s, const char *buffer, size_t sz);

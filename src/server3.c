@@ -36,7 +36,7 @@ int send_file(const char *filename, Socket *s)
         return -1;
     }
 
-    tcp_start_transfer(s);
+    tcp_start_transfer(s, 0, 100);
 
     while ((size = fread(buffer, 1, BUFSIZE, file)) > 0) {
         tcp_send(s, buffer, size);

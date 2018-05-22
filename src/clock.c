@@ -8,7 +8,7 @@
 static int count = 0;
 
 
-static void *clock_thread(void *_clk)
+/*static void *clock_thread(void *_clk)
 {
     Clock       *clk = _clk;
     Queue       *queue = &clk->socket->queue;
@@ -54,3 +54,4 @@ void clock_init(Clock *clk, Socket *socket, ulong_t usecs)
 
     pthread_create(&clk->pthread, NULL, clock_thread, clk);
 }
+*/

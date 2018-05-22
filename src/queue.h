@@ -9,42 +9,53 @@
 #include "types.h"
 #include "consts.h"
 
+#define QUEUE_SIZE 65535
+
 struct queue_entry
 {
-    char                packet[PACKET_SIZE];
-    seq_t               seq;
-    size_t              size;
+    char            packet[PACKET_SIZE];
+    int             seq;
+    size_t          size;
 
-    struct timeval      tx_time;
-    ulong_t             rtx_usecs;
-    int                 rtx_count;
-
-    struct queue_entry  *next;
+    struct timeval  tx_time;
+    ulong_t         rtx_usecs;
+    int             rtx_count;
 };
 
 typedef struct queue_entry QueueEntry;
 
 struct queue
 {
-    QueueEntry *top;
-    QueueEntry *last;
-
-    sem_t free;
-    pthread_mutex_t mutex;
+    QueueEntry              data[QUEUE_SIZE];
+    int                     r;
+    int                     w;
+    sem_t                   free;
+    pthread_spinlock_t      lock;
 };
 
 typedef struct queue Queue;
 
-QueueEntry *queue_entry_new(const char *packet, seq_t seq, size_t size,
-                            ulong_t tx_time, int tx_count);
+void queue_init(Queue *queue);
 
-QueueEntry *queue_get(Queue *queue, seq_t seq);
+void queue_add_entry(Queue *q, const char *packet, int seq, size_t size,
+                     ulong_t tx_time, int tx_count);
 
-void queue_init(Queue *queue, size_t sz);
-void queue_insert_ordered(Queue *queue, QueueEntry *entry);
-void queue_remove(Queue *queue, seq_t seq);
-void queue_remove_before(Queue *queue, seq_t seq);
+QueueEntry *queue_get(Queue *q, int seq);
 
-void queue_print(Queue *queue);
+void queue_clear(Queue *q, int c);
+
+void queue_print(Queue *q);
+
+
+static inline int queue_readable(Queue *q)
+{
+    return q->w - q->r;
+}
+
+static inline int queue_writable(Queue *q)
+{
+    return QUEUE_SIZE - queue_readable(q);
+}
+
 
 #endif

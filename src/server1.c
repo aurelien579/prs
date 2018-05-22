@@ -1,5 +1,6 @@
 #include "log.h"
 #include "tcp.h"
+#include "types.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -24,11 +25,11 @@
 
 static void usage(const char *prog)
 {
-    printf("Usage: %s port\n", prog);
+    printf("Usage: %s port sleep count\n", prog);
     exit(0);
 }
 
-static int send_file(const char *filename, Socket *sock)
+static int send_file(const char *filename, Socket *sock, ulong_t sleep, int count)
 {
     char buffer[BUFSIZE];
     size_t size;
@@ -36,7 +37,7 @@ static int send_file(const char *filename, Socket *sock)
 
     if (!file) return -1;
 
-    tcp_start_transfer(sock);
+    tcp_start_transfer(sock, sleep, count);
 
     while ((size = fread(buffer, 1, BUFSIZE, file)) > 0) {
         tcp_send(sock, buffer, size);
@@ -49,14 +50,14 @@ static int send_file(const char *filename, Socket *sock)
     return 0;
 }
 
-static void handle_client(Socket *client)
+static void handle_client(Socket *client, ulong_t sleep, int count)
 {
     char buffer[BUFSIZE];
 
     tcp_recv(client, buffer, sizeof(buffer));
     DEBUG("Sending file : %s", buffer);
 
-    send_file(buffer, client);
+    send_file(buffer, client, sleep, count);
 
     tcp_close(client);
 }
@@ -64,12 +65,16 @@ static void handle_client(Socket *client)
 int main(int argc, char **argv)
 {
     unsigned short port;
+    ulong_t sleep;
+    int count;
     struct sockaddr_in distant;
     Socket *socket;
     Socket *client;
 
-    if (argc < 2) usage(argv[0]);
+    if (argc < 4) usage(argv[0]);
     port = (unsigned short) atoi(argv[1]);
+    sleep = (ulong_t) atol(argv[2]);
+    count = atoi(argv[3]);
 
     log_init(NULL);
     DEBUG("Server start");
@@ -79,7 +84,7 @@ int main(int argc, char **argv)
 
     client = tcp_accept(socket, &distant);
 
-    handle_client(client);
+    handle_client(client, sleep, count);
 
     tcp_close(socket);
 

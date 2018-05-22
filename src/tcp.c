@@ -220,12 +220,12 @@ Socket *tcp_accept(Socket *sock, struct sockaddr_in *distant_addr)
     return new_sock;
 }
 
-void tcp_start_transfer(Socket *sock)
+void tcp_start_transfer(Socket *sock, ulong_t sleep, int count)
 {
-    queue_init(&sock->queue, MAX_WINDOW);
-    clock_init(&sock->clock, sock, CLK_US);
+    queue_init(&sock->queue);
+    //clock_init(&sock->clock, sock, CLK_US);
     recv_thread_init(&sock->recv_thread, sock);
-    send_thread_init(&sock->send_thread, sock->fd, &sock->queue);
+    send_thread_init(&sock->send_thread, sock->fd, &sock->queue, sleep, count);
 }
 
 void tcp_close(Socket *socket)
@@ -245,60 +245,19 @@ ssize_t tcp_recv(Socket *s, char *out, size_t sz)
 void tcp_send(Socket *s, const char *in, size_t sz)
 {
     char packet[PACKET_SIZE];
-    QueueEntry *entry;
 
     if (sz > DATA_SIZE) return;
 
-    make_packet(packet, in, sz, s->que_nxt);
-    entry = queue_entry_new(packet, s->que_nxt, sz + HEADER_SIZE, 0, 0);
+    make_packet(packet, in, sz, (seq_t) s->que_nxt);
+
+    pthread_spin_lock(&s->queue.lock);
+    queue_add_entry(&s->queue, packet, s->que_nxt, sz + HEADER_SIZE, 0, 0);
+    pthread_spin_unlock(&s->queue.lock);
+
     s->que_nxt++;
-
-    queue_insert_ordered(&s->queue, entry);
-
-    /*if (s->snd_nxt < s->snd_una + s->snd_wnd)
-        tcp_output(s);*/
-}
-
-void tcp_output(Socket *sock)
-{
-    QueueEntry *entry;
-
-    pthread_mutex_lock(&sock->queue.mutex);
-
-    entry = sock->queue.top;
-    while (entry) {
-        if (entry->rtx_usecs == 0) {
-            if (entry->rtx_count != 0 || sock->snd_nxt < sock->snd_una + sock->snd_wnd) {
-                send(sock->fd, entry->packet, entry->size, 0);
-
-                if (entry->rtx_count == 0) {
-                    //printf("SEND %d\n", entry->seq);
-                    sock->snd_nxt++;
-                } else {
-                    //printf("RESEND %d %d\n", entry->seq, entry->rtx_count); // HOP ON DETECTE UNE COLLISION
-#ifndef NO_CONGESTION
-                    sock -> snd_wnd = max(MIN_WINDOW, sock ->snd_wnd - sock ->snd_wnd/4);
-                    if(entry->rtx_count==1){
-                      sock->ssthresh = max (SSTHRESH_OFFSET+(int)((sock->snd_nxt-sock->snd_una) / 2), MIN_SSTHRESH);
-                    }
-#endif
-                }
-
-                entry->rtx_count++;
-                entry->rtx_usecs = sock->srtt + K*sock->rttvar;
-                gettimeofday(&entry->tx_time, NULL);
-            }
-        }
-
-        entry = entry->next;
-    }
-
-    pthread_mutex_unlock(&sock->queue.mutex);
 }
 
 void tcp_wait(Socket *sock)
 {
-    while (sock->queue.top) {
-        //usleep(10);
-    }
+    while (queue_readable(&sock->queue) > 0) usleep(1);
 }

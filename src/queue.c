@@ -4,9 +4,21 @@
 #include <string.h>
 #include <stdio.h>
 
-QueueEntry *queue_entry_new(const char *packet, seq_t seq, size_t size, ulong_t rtx_usecs, int rtx_count)
+void queue_init(Queue *q)
 {
-    QueueEntry *entry = malloc(sizeof(QueueEntry));
+    q->r = 1;
+    q->w = 1;
+
+    sem_init(&q->free, 0, QUEUE_SIZE);
+    pthread_spin_init(&q->lock, 0);
+}
+
+void queue_add_entry(Queue *q, const char *packet, int seq, size_t size,
+                     ulong_t rtx_usecs, int rtx_count)
+{
+    sem_wait(&q->free);
+
+    QueueEntry *entry = &q->data[q->w % QUEUE_SIZE];
 
     memcpy(entry->packet, packet, size);
     entry->rtx_usecs = rtx_usecs;
@@ -14,112 +26,24 @@ QueueEntry *queue_entry_new(const char *packet, seq_t seq, size_t size, ulong_t 
     entry->size = size;
     entry->seq = seq;
 
-    entry->next = NULL;
-
-    return entry;
+    q->w++;
 }
 
-void queue_init(Queue *queue, size_t sz)
+void queue_clear(Queue *q, int c)
 {
-    queue->top = NULL;
-    queue->last = NULL;
-
-    sem_init(&queue->free, 0, sz);
-    pthread_mutex_init(&queue->mutex, NULL);
+    q->r += c;
+    for (int i = 0; i < c; i++) sem_post(&q->free);
 }
 
-void queue_insert_ordered(Queue *queue, QueueEntry *entry)
+QueueEntry *queue_get(Queue *q, int seq)
 {
-    sem_wait(&queue->free);
-
-    pthread_mutex_lock(&queue->mutex);
-
-    if (!queue->last) {
-        queue->last = entry;
-        queue->top = entry;
-    } else {
-        queue->last->next = entry;
-        queue->last = entry;
-    }
-
-    pthread_mutex_unlock(&queue->mutex);
-}
-
-void queue_remove_before(Queue *queue, seq_t seq)
-{
-    pthread_mutex_lock(&queue->mutex);
-
-    QueueEntry *cur = queue->top;
-    QueueEntry *temp = NULL;
-
-    while (cur) {
-        if (cur->seq > seq) break;
-        if (cur == queue->last) {
-            queue->last = NULL;
-        }
-
-        temp = cur->next;
-        sem_post(&queue->free);
-        free(cur);
-        cur = temp;
-    }
-
-    queue->top = cur;
-
-    pthread_mutex_unlock(&queue->mutex);
-}
-
-void queue_remove(Queue *queue, seq_t seq)
-{
-    pthread_mutex_lock(&queue->mutex);
-
-    QueueEntry *cur = queue->top;
-    QueueEntry *prev = NULL;
-
-    while (cur) {
-        if (cur->seq == seq) {
-            if (prev) {
-                prev->next = cur->next;
-            } else {
-                queue->top = cur->next;
-            }
-
-            free(cur);
-            sem_post(&queue->free);
-            pthread_mutex_unlock(&queue->mutex);
-            return;
-        }
-
-        prev = cur;
-        cur = cur->next;
-    }
-
-    pthread_mutex_unlock(&queue->mutex);
-}
-
-QueueEntry *queue_get(Queue *queue, seq_t seq)
-{
-    QueueEntry *cur = queue->top;
-
-    while (cur) {
-        if (cur->seq == seq) {
-            return cur;
-        }
-
-        cur = cur->next;
-    }
-
-    return NULL;
+    return &q->data[seq % QUEUE_SIZE];
 }
 
 void queue_print(Queue *q)
 {
-    QueueEntry *c = q->top;
-
     printf("QUEUE : ");
-    while (c) {
-        printf("%d ", c->seq);
-        c = c->next;
-    }
+    for (int i = q->r; i < q->w; i++)
+        printf("%d ", q->data[i % QUEUE_SIZE].seq);
     printf("\n");
 }

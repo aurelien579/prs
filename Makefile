@@ -1,5 +1,5 @@
 CC		:= gcc
-override CFLAGS	+= -Wall -Wno-unused-function -std=c11 -D_DEFAULT_SOURCE
+override CFLAGS	+= -Wall -Wno-unused-function -std=c11 -D_DEFAULT_SOURCE -O3
 LFLAGS	:= -pthread
 OBJECTS := build/utils.o 		\
 		   build/tcp.o			\

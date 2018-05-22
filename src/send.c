@@ -1,4 +1,5 @@
 #include "send.h"
+#include "utils.h"
 
 #include <stdio.h>
 #include <unistd.h>
@@ -8,34 +9,35 @@ static void *__send(void *_thread)
 {
     SendThread *thread = _thread;
     QueueEntry *entry;
-    int i;
+    Queue *q = thread->queue;
+    int count = 0;
 
     while (thread->running) {
-        pthread_mutex_lock(&thread->queue->mutex);
+        pthread_spin_lock(&q->lock);
 
-        entry = thread->queue->top;
-        i = 0;
+        count = min(thread->count, queue_readable(q));
 
-        while (entry && i < 500) {
-            //printf("Sending %d\n", entry->seq);
+        for (int i = 0; i < count; i++) {
+            entry = queue_get(q, q->r + i);
             send(thread->fd, entry->packet, entry->size, 0);
-            entry = entry->next;
-            i++;
         }
 
-        pthread_mutex_unlock(&thread->queue->mutex);
+        pthread_spin_unlock(&q->lock);
 
-        usleep(5);
+        usleep(thread->sleep);
     }
 
     return NULL;
 }
 
-void send_thread_init(SendThread *thread, int fd, Queue *queue)
+void send_thread_init(SendThread *thread, int fd, Queue *queue, ulong_t sleep, int count)
 {
     thread->running = 1;
     thread->fd = fd;
     thread->queue = queue;
+    thread->sleep = sleep;
+    thread->count = count;
+    
     pthread_create(&thread->pthread, NULL, __send, thread);
 }
 
