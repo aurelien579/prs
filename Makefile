@@ -14,7 +14,7 @@ server1:
 	$(MAKE) CFLAGS="" bin/server1-LesRetardataires
 
 server2:
-	$(MAKE) CFLAGS="-DNO_FAST_RETRANSMIT" bin/server2-LesRetardataires
+	$(MAKE) CFLAGS="-DNO_FAST_RETRANSMIT -DNO_CONGESTION" bin/server2-LesRetardataires
 
 server3:
 	$(MAKE) bin/server3-LesRetardataires

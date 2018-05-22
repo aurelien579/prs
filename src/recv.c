@@ -60,9 +60,9 @@ static void *__recv(void *_self)
             sock->rttvar = rtt / 2;
         } else {
             if (sock->srtt > rtt)
-                sock->rttvar = ((1 - BETA) * sock->rttvar) + (BETA * (sock->srtt - rtt))+10000;
+                sock->rttvar = ((1 - BETA) * sock->rttvar) + (BETA * (sock->srtt - rtt))+RTT_OFFSET;
             else
-                sock->rttvar = ((1 - BETA) * sock->rttvar) + (BETA * (rtt - sock->srtt))+10000;
+                sock->rttvar = ((1 - BETA) * sock->rttvar) + (BETA * (rtt - sock->srtt))+RTT_OFFSET;
             sock->srtt = (sock->srtt * (1 - ALPHA)) + (ALPHA * rtt);
         }
 

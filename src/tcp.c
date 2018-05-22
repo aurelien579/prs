@@ -235,7 +235,7 @@ void tcp_start_transfer(Socket *sock)
 void tcp_close(Socket *socket)
 {
     recv_thread_stop(&socket->recv_thread);
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < 100; i++)
         send_data(socket, "FIN", 4);
     close(socket->fd);
 
@@ -301,8 +301,10 @@ void tcp_output(Socket *sock)
                 } else {
                     //printf("RESEND %d %d\n", entry->seq, entry->rtx_count); // HOP ON DETECTE UNE COLLISION
 #ifndef NO_CONGESTION
+						  //printf("%d-",sock->snd_nxt-sock->snd_una);
                     sock -> snd_wnd = max(MIN_WINDOW, sock ->snd_wnd - sock ->snd_wnd/4);
                     if(entry->rtx_count==1){
+                      //
                       sock->ssthresh = max (SSTHRESH_OFFSET+(int)((sock->snd_nxt-sock->snd_una) / 2), MIN_SSTHRESH);
                     }
 #endif

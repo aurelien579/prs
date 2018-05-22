@@ -15,18 +15,22 @@
 #define INITRTT         1000*50
 #endif
 
-#ifndef INIT_WINDOW
-#define INIT_WINDOW     10
+#ifndef RTT_OFFSET
+#define RTT_OFFSET      0
 #endif
 
-#define MAX_WINDOW      50
-#define MIN_WINDOW      10
+#ifndef INIT_WINDOW
+#define INIT_WINDOW     300
+#endif
 
-#define ALPHA           0.125*7
-#define BETA            0.25*3
+#define MAX_WINDOW      500
+#define MIN_WINDOW      300
+
+#define ALPHA           0.9
+#define BETA            0.25*0
 #define K               1
 
-#define MIN_SSTHRESH    7
+#define MIN_SSTHRESH    15
 #define INI_SSTRESH     128
 #define SSTHRESH_OFFSET 5
 
