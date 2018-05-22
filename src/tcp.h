@@ -39,6 +39,7 @@ Socket *tcp_socket();
 void tcp_bind(Socket *sock, const char *ip, u16 port);
 void tcp_close(Socket *s);
 
+void tcp_start_transfer(Socket *sock);
 Socket *tcp_accept(Socket *sock, struct sockaddr_in *distant_addr);
 
 void tcp_send(Socket *s, const char *buffer, size_t sz);

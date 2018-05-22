@@ -35,7 +35,7 @@ int send_file(const char *filename, Socket *s)
         ERRNO("Can't open file : %s", filename);
         return -1;
     }
-    
+
     tcp_start_transfer(s);
 
     while ((size = fread(buffer, 1, BUFSIZE, file)) > 0) {
@@ -49,11 +49,30 @@ int send_file(const char *filename, Socket *s)
     return 0;
 }
 
+void *client_handler(void *_socket)
+{
+    Socket *socket = _socket;
+    char buffer[BUFSIZE];
+
+    printf("Receiving filename...\n");
+
+    tcp_recv(socket, buffer, BUFSIZE);
+    DEBUG("Sending file : %s", buffer);
+
+    send_file(buffer, socket);
+
+    tcp_close(socket);
+
+    return NULL;
+}
+
 int main(int argc, char **argv)
 {
     u16 port;
-    char buffer[BUFSIZE];
     struct sockaddr_in distant;
+    pthread_t clients[100];
+    int clients_count = 0;
+    memset(clients, 0, sizeof(clients));
 
     if (argc < 2) usage(argv[0]);
 
@@ -64,15 +83,19 @@ int main(int argc, char **argv)
 
     Socket *socket = tcp_socket();
     tcp_bind(socket, "0.0.0.0", port);
-    Socket *other;
-    other = tcp_accept(socket, &distant);
-    tcp_recv(other, buffer, BUFSIZE);
-    DEBUG("Sending file : %s", buffer);
+    Socket *other = NULL;
 
-    send_file(buffer, other);
+    while ((other = tcp_accept(socket, &distant))) {
+        pthread_create(&clients[clients_count++], NULL, client_handler, other);
+    }
+
+    for (int i = 0; i < clients_count; i++) {
+        if (clients[i] != 0) {
+            pthread_join(clients[i], NULL);
+        }
+    }
 
     tcp_close(socket);
-    tcp_close(other);
 
     DEBUG("Server close");
     return 0;

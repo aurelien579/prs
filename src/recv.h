@@ -16,5 +16,6 @@ struct recv_thread
 typedef struct recv_thread RecvThread;
 
 void recv_thread_init(RecvThread *thread, Socket *socket);
+void recv_thread_stop(RecvThread *thread);
 
 #endif

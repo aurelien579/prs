@@ -82,6 +82,8 @@ static int disassociate_socket(Socket *sock)
 
 static Socket *create_dedicated_socket(struct sockaddr_in *distant, u16 *port)
 {
+    static u16 last_port = 1023;
+
     Socket *sock;
     socklen_t addrlen = sizeof(struct sockaddr_in);
     struct sockaddr_in localaddr;
@@ -94,7 +96,7 @@ static Socket *create_dedicated_socket(struct sockaddr_in *distant, u16 *port)
     localaddr.sin_addr.s_addr = 0;
 
     /* Try to get a free port number between 1023 and 9999 */
-    *port = 1023;
+    *port = last_port;
     do {
         if (*port >= 9999) {
             close(sock->fd);
@@ -103,12 +105,13 @@ static Socket *create_dedicated_socket(struct sockaddr_in *distant, u16 *port)
         }
 
         (*port)++;
-        localaddr.sin_port = *port;
+        localaddr.sin_port = htons(*port);
         ret = bind(sock->fd, (struct sockaddr *) &localaddr, addrlen);
-    } while (ret < 0);
+    } while (ret != 0);
 
     associate_socket(sock, distant);
 
+    last_port = *port;
     return sock;
 }
 
@@ -217,19 +220,25 @@ Socket *tcp_accept(Socket *sock, struct sockaddr_in *distant_addr)
     }
     DEBUG("Last ACK received, connection established");
 
-    //disassociate_socket(sock);
-
-    queue_init(&new_sock->queue, MAX_WINDOW);
-    clock_init(&new_sock->clock, new_sock, CLK_US);
-    recv_thread_init(&new_sock->recv_thread, new_sock);
+    disassociate_socket(sock);
 
     return new_sock;
 }
 
+void tcp_start_transfer(Socket *sock)
+{
+    queue_init(&sock->queue, MAX_WINDOW);
+    clock_init(&sock->clock, sock, CLK_US);
+    recv_thread_init(&sock->recv_thread, sock);
+}
+
 void tcp_close(Socket *socket)
 {
-    send_data(socket, "FIN", 4);
+    recv_thread_stop(&socket->recv_thread);
+    for (int i = 0; i < 10; i++)
+        send_data(socket, "FIN", 4);
     close(socket->fd);
+
 }
 
 static ssize_t send_and_retransmit(Socket *s, const char *in, size_t data_size)
@@ -287,10 +296,10 @@ void tcp_output(Socket *sock)
                 send(sock->fd, entry->packet, entry->size, 0);
 
                 if (entry->rtx_count == 0) {
-                    printf("SEND %d\n", entry->seq);
+                    //printf("SEND %d\n", entry->seq);
                     sock->snd_nxt++;
                 } else {
-                    printf("RESEND %d %d\n", entry->seq, entry->rtx_count); // HOP ON DETECTE UNE COLLISION
+                    //printf("RESEND %d %d\n", entry->seq, entry->rtx_count); // HOP ON DETECTE UNE COLLISION
 #ifndef NO_CONGESTION
                     sock -> snd_wnd = max(MIN_WINDOW, sock ->snd_wnd - sock ->snd_wnd/4);
                     if(entry->rtx_count==1){

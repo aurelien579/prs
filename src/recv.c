@@ -20,10 +20,10 @@ static void *__recv(void *_self)
     int ack_redondance=0;
     while (self->running) {
         ack = recv_ack(sock);
-        printf("WHILE\n");
+        //printf("WHILE\n");
 
         if (ack < sock->snd_una || ack >= sock->snd_una + sock->snd_nxt) { // ack déjà reçu ou d'un segment non envoyé
-            printf("invalid ack : %d\n", ack);
+            //printf("invalid ack : %d\n", ack);
             continue;
         }
 
@@ -46,7 +46,7 @@ static void *__recv(void *_self)
       }
 #endif
 
-        printf("ack : %d\n", ack);
+        //printf("ack : %d\n", ack);
 
         pthread_mutex_lock(&sock->queue.mutex);
 
@@ -66,7 +66,7 @@ static void *__recv(void *_self)
             sock->srtt = (sock->srtt * (1 - ALPHA)) + (ALPHA * rtt);
         }
 
-        printf("RTT=%lld, SRTT=%lld\n", rtt, sock->srtt);
+        //printf("RTT=%lld, SRTT=%lld\n", rtt, sock->srtt);
 
         /*sock->snd_wnd++;
         printf("INCREASE\n");*/
@@ -97,4 +97,10 @@ void recv_thread_init(RecvThread *thread, Socket *socket)
     thread->socket = socket;
     thread->running = 1;
     pthread_create(&thread->pthread, NULL, __recv, thread);
+}
+
+void recv_thread_stop(RecvThread *thread)
+{
+    thread->running = 0;
+    pthread_cancel(thread->pthread);
 }
