@@ -1,5 +1,4 @@
 #include "tcp.h"
-#include "log.h"
 #include "utils.h"
 #include "consts.h"
 
@@ -15,23 +14,6 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
-
-
-
-#if LOG_LEVEL >= LOG_DEBUG
-    #define DEBUG(...)   log_debug("TCP", __VA_ARGS__)
-#else
-    #define DEBUG(...)
-#endif
-
-#if LOG_LEVEL >= ERROR
-    #define ERROR(...)   log_error("TCP", __VA_ARGS__);
-    #define ERRNO(...)   log_errno("TCP", __VA_ARGS__);
-#else
-    #define ERROR(...)
-    #define ERRNO(...)
-#endif
-
 
 
 static Socket *tcp_socket_new(int fd)
@@ -95,7 +77,7 @@ static Socket *create_dedicated_socket(struct sockaddr_in *distant, u16 *port)
     do {
         if (*port >= 9999) {
             close(sock->fd);
-            ERRNO("Can't find port free number");
+            fprintf(stderr, "Can't find port free number\n");
             return NULL;
         }
 
@@ -147,8 +129,6 @@ Socket *tcp_socket()
 {
     int fd, yes = 1;
 
-    DEBUG("Creating TCP socket");
-
     fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd < 0) return NULL;
 
@@ -169,51 +149,46 @@ Socket *tcp_accept(Socket *sock, struct sockaddr_in *distant_addr)
     ret = recvfrom(sock->fd, buffer, BUFSIZE, 0,
                    (struct sockaddr *) distant_addr, &addrlen);
     if (ret < 0) {
-        ERRNO("Can't receive SYN");
+        fprintf(stderr, "Can't receive SYN\n");
         return NULL;
     }
 
     if (strncmp(buffer, "SYN", BUFSIZE)) {
-        ERROR("Invalid packet received: %s", buffer);
+        fprintf(stderr, "Invalid packet received: %s\n", buffer);
         return NULL;
     }
-
-    DEBUG("SYN received from : %s", inet_ntoa(distant_addr->sin_addr));
 
     /* Creating the new dedicated socket */
     new_sock = create_dedicated_socket(distant_addr, &new_port);
     if (!new_sock) {
-        ERROR("Can't create dedicated socket");
+        fprintf(stderr, "Can't create dedicated socket\n");
         return NULL;
     }
-
-    DEBUG("Dedicated socket created with port %d", new_port);
 
     /* Sending the dedicated port number */
     associate_socket(sock, distant_addr);
     ret = snprintf(buffer, BUFSIZE, "SYN-ACK%d", new_port);
     ret = send_data(sock, buffer, ret);
     if (ret < 0) {
-        ERRNO("Can't send SYN");
+        fprintf(stderr, "Can't send SYN\n");
         tcp_close(new_sock);
         return NULL;
     }
-
-    DEBUG("SYN-ACK sent");
 
     /* Receiving the last ACK */
     ret = recv_data(sock, buffer, BUFSIZE);
     if (ret < 0) {
-        ERRNO("Can't receive the last ACK");
+        fprintf(stderr, "Can't receive the last ACK\n");
         tcp_close(new_sock);
         return NULL;
     }
     if (strncmp(buffer, "ACK", BUFSIZE)) {
-        ERROR("Invalid packet received: %s", buffer);
+        fprintf(stderr, "Invalid packet received: %s\n", buffer);
         tcp_close(new_sock);
         return NULL;
     }
-    DEBUG("Last ACK received, connection established");
+
+    fprintf(stderr, "Last ACK received, connection established\n");
 
     disassociate_socket(sock);
 
@@ -223,7 +198,6 @@ Socket *tcp_accept(Socket *sock, struct sockaddr_in *distant_addr)
 void tcp_start_transfer(Socket *sock, ulong_t sleep, int count)
 {
     queue_init(&sock->queue);
-    //clock_init(&sock->clock, sock, CLK_US);
     recv_thread_init(&sock->recv_thread, sock);
     send_thread_init(&sock->send_thread, sock->fd, &sock->queue, sleep, count);
 }
@@ -232,7 +206,12 @@ void tcp_close(Socket *socket)
 {
     recv_thread_stop(&socket->recv_thread);
 
-    for (int i = 0; i < 10; i++) send_data(socket, "FIN", 4);
+    /*for (int i = 0; i < 50; i++) {
+        send_data(socket, "FIN", 4);
+        usleep(5);
+    }*/
+
+    system("killall bin/client1*");
 
     close(socket->fd);
 }

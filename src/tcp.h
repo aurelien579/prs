@@ -3,7 +3,6 @@
 
 #include "types.h"
 #include "queue.h"
-#include "clock.h"
 #include "recv.h"
 #include "send.h"
 
@@ -26,7 +25,6 @@ struct tcp_socket
     int que_nxt;        /* Next segment in queue */
 
     Queue queue;
-    Clock clock;
 
     RecvThread recv_thread;
     SendThread send_thread;

@@ -44,8 +44,6 @@ QueueEntry *queue_get(Queue *q, int seq);
 
 void queue_clear(Queue *q, int c);
 
-void queue_print(Queue *q);
-
 
 static inline int queue_readable(Queue *q)
 {

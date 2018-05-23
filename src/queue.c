@@ -39,11 +39,3 @@ QueueEntry *queue_get(Queue *q, int seq)
 {
     return &q->data[seq % QUEUE_SIZE];
 }
-
-void queue_print(Queue *q)
-{
-    printf("QUEUE : ");
-    for (int i = q->r; i < q->w; i++)
-        printf("%d ", q->data[i % QUEUE_SIZE].seq);
-    printf("\n");
-}

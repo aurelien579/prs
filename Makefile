@@ -1,34 +1,25 @@
 CC		:= gcc
 override CFLAGS	+= -Wall -Wno-unused-function -std=c11 -D_DEFAULT_SOURCE -O3
 LFLAGS	:= -pthread
-OBJECTS := build/utils.o 		\
-		   build/tcp.o			\
-		   build/log.o			\
-		   build/clock.o		\
+OBJECTS := build/tcp.o			\
+		   build/main.o			\
 		   build/queue.o		\
 		   build/recv.o			\
 		   build/send.o			\
 
-all: server1 server2 server3
+all: server1 server3
 
 server1:
 	$(MAKE) CFLAGS="" bin/server1-LesRetardataires
 
-server2:
-	$(MAKE) CFLAGS="-DNO_FAST_RETRANSMIT" bin/server2-LesRetardataires
-
 server3:
 	$(MAKE) bin/server3-LesRetardataires
 
-bin/server1-LesRetardataires: build/server1.o $(OBJECTS)
+bin/server1-LesRetardataires: build/main.o $(OBJECTS)
 	@echo ' Linking  $@'
 	@$(CC) $(LFLAGS) $^ -o $@
 
-bin/server2-LesRetardataires: build/server1.o $(OBJECTS)
-	@echo ' Linking  $@'
-	@$(CC) $(LFLAGS) $^ -o $@
-
-bin/server3-LesRetardataires: build/server3.o $(OBJECTS)
+bin/server3-LesRetardataires: build/main.o $(OBJECTS)
 	@echo ' Linking  $@'
 	@$(CC) $(LFLAGS) $^ -o $@
 
