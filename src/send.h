@@ -5,7 +5,7 @@
 
 #include <pthread.h>
 
-struct send_thread
+struct sender
 {
     int         fd;
     int         running;
@@ -15,9 +15,9 @@ struct send_thread
     Queue       *queue;
 };
 
-typedef struct send_thread SendThread;
+typedef struct sender Sender;
 
-void send_thread_init(SendThread *thread, int fd, Queue *queue, ulong_t sleep, int count);
-void send_thread_exit(SendThread *thread);
+void sender_init(Sender *self, int fd, Queue *queue, ulong_t sleep, int count);
+void sender_stop(Sender *self);
 
 #endif

@@ -10,13 +10,12 @@
 
 static void *__recv(void *_self)
 {
-    RecvThread *self = _self;
-    int ack;
-    int gap;
+    Recver  *self = _self;
+    int     ack, gap;
 
     while (self->running) {
         ack = recv_ack(self->socket);
-        gap = ack - self->socket->snd_una + 1;
+        gap = ack - self->socket->una + 1;
 
         if (gap <= 0) continue;
 
@@ -24,21 +23,21 @@ static void *__recv(void *_self)
         queue_clear(&self->socket->queue, gap);
         pthread_spin_unlock(&self->socket->queue.lock);
 
-        self->socket->snd_una = ack + 1;
+        self->socket->una = ack + 1;
     }
 
     return NULL;
 }
 
-void recv_thread_init(RecvThread *thread, Socket *socket)
+void recver_init(Recver *self, Socket *socket)
 {
-    thread->socket = socket;
-    thread->running = 1;
-    pthread_create(&thread->pthread, NULL, __recv, thread);
+    self->socket = socket;
+    self->running = 1;
+    pthread_create(&self->pthread, NULL, __recv, self);
 }
 
-void recv_thread_stop(RecvThread *thread)
+void recver_stop(Recver *self)
 {
-    thread->running = 0;
-    pthread_cancel(thread->pthread);
+    self->running = 0;
+    pthread_cancel(self->pthread);
 }

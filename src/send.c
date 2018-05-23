@@ -7,42 +7,42 @@
 
 static void *__send(void *_thread)
 {
-    SendThread *thread = _thread;
-    QueueEntry *entry;
-    Queue *q = thread->queue;
-    int count = 0;
+    Sender      *self = _thread;
+    int         count = 0;
+    Queue       *q = self->queue;
+    QueueEntry  *entry;
 
-    while (thread->running) {
+    while (self->running) {
         pthread_spin_lock(&q->lock);
 
-        count = min(thread->count, queue_readable(q));
+        count = min(self->count, queue_readable(q));
 
         for (int i = 0; i < count; i++) {
             entry = queue_get(q, q->r + i);
-            send(thread->fd, entry->packet, entry->size, 0);
+            send(self->fd, entry->packet, entry->size, 0);
         }
 
         pthread_spin_unlock(&q->lock);
 
-        usleep(thread->sleep);
+        usleep(self->sleep);
     }
 
     return NULL;
 }
 
-void send_thread_init(SendThread *thread, int fd, Queue *queue, ulong_t sleep, int count)
+void sender_init(Sender *self, int fd, Queue *queue, ulong_t sleep, int count)
 {
-    thread->running = 1;
-    thread->fd = fd;
-    thread->queue = queue;
-    thread->sleep = sleep;
-    thread->count = count;
-    
-    pthread_create(&thread->pthread, NULL, __send, thread);
+    self->running = 1;
+    self->fd = fd;
+    self->queue = queue;
+    self->sleep = sleep;
+    self->count = count;
+
+    pthread_create(&self->pthread, NULL, __send, self);
 }
 
-void send_thread_exit(SendThread *thread)
+void sender_stop(Sender *self)
 {
-    thread->running = 0;
-    pthread_cancel(thread->pthread);
+    self->running = 0;
+    pthread_cancel(self->pthread);
 }

@@ -5,17 +5,16 @@
 
 #include <pthread.h>
 
-struct recv_thread
+struct recver
 {
-    pthread_t pthread;
-
-    int     running;
-    Socket *socket;
+    pthread_t   pthread;
+    int         running;
+    Socket      *socket;
 };
 
-typedef struct recv_thread RecvThread;
+typedef struct recver Recver;
 
-void recv_thread_init(RecvThread *thread, Socket *socket);
-void recv_thread_stop(RecvThread *thread);
+void recver_init(Recver *self, Socket *socket);
+void recver_stop(Recver *self);
 
 #endif

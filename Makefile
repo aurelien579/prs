@@ -1,5 +1,5 @@
 CC		:= gcc
-override CFLAGS	+= -Wall -Wno-unused-function -std=c11 -D_DEFAULT_SOURCE -O3
+override CFLAGS	+= -Wall -std=c11 -D_DEFAULT_SOURCE -O8 -s
 LFLAGS	:= -pthread
 OBJECTS := build/tcp.o			\
 		   build/main.o			\
@@ -10,10 +10,10 @@ OBJECTS := build/tcp.o			\
 all: server1 server3
 
 server1:
-	$(MAKE) CFLAGS="" bin/server1-LesRetardataires
+	$(MAKE) bin/server1-LesRetardataires
 
 server3:
-	$(MAKE) bin/server3-LesRetardataires
+	$(MAKE) CFLAGS="-DSRV3" bin/server3-LesRetardataires
 
 bin/server1-LesRetardataires: build/main.o $(OBJECTS)
 	@echo ' Linking  $@'

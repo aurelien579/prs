@@ -24,37 +24,39 @@ static Socket *tcp_socket_new(int fd)
     memset(sock, 0, sizeof(Socket));
 
     sock->fd = fd;
-    sock->snd_nxt = 1;
-    sock->snd_wnd = INIT_WINDOW;
-    sock->snd_una = 1;
-    sock->que_nxt = 1;
-    sock->ssthresh = INI_SSTRESH;
-
-    sock->srtt = INITRTT;
+    sock->nxt = 1;
+    sock->una = 1;
 
     return sock;
 }
 
-static ssize_t send_data(Socket *sock, const char *data, size_t sz)
-{
-    return send(sock->fd, data, sz, 0);
-}
-
-static ssize_t recv_data(Socket *sock, char *data, size_t sz)
-{
-    return recv(sock->fd, data, sz, 0);
-}
-
-static int associate_socket(Socket *s, struct sockaddr_in *addr)
+static inline int associate_socket(Socket *s, struct sockaddr_in *addr)
 {
     return connect(s->fd, (struct sockaddr *) addr, sizeof(struct sockaddr_in));
 }
 
-static int disassociate_socket(Socket *sock)
+static inline int disassociate_socket(Socket *sock)
 {
     struct sockaddr_in addr;
     addr.sin_family = AF_UNSPEC;
     return associate_socket(sock, &addr);
+}
+
+static inline ssize_t send_data(Socket *sock, const char *data, size_t sz)
+{
+    return send(sock->fd, data, sz, 0);
+}
+
+static inline ssize_t recv_data(Socket *sock, char *data, size_t sz)
+{
+    return recv(sock->fd, data, sz, 0);
+}
+
+static inline void make_packet(char *packet, const char *data, size_t sz, seq_t seq)
+{
+    memset(packet, 0, PACKET_SIZE);
+    snprintf(packet, PACKET_SIZE, "%06d", seq);
+    memcpy(packet + HEADER_SIZE, data, sz);
 }
 
 static Socket *create_dedicated_socket(struct sockaddr_in *distant, u16 *port)
@@ -98,21 +100,6 @@ int recv_ack(Socket *s)
 
     recv_data(s, buffer, sizeof(buffer));
     return atoi(buffer + 3);
-}
-
-static int set_socket_timeout(Socket *s, int secs, int usecs)
-{
-    struct timeval tv;
-    tv.tv_sec = secs;
-    tv.tv_usec = usecs;
-    return setsockopt(s->fd, SOL_SOCKET, SO_RCVTIMEO, (const char *) &tv, sizeof(tv));
-}
-
-static void make_packet(char *packet, const char *data, size_t sz, seq_t seq)
-{
-    memset(packet, 0, PACKET_SIZE);
-    snprintf(packet, PACKET_SIZE, "%06d", seq);
-    memcpy(packet + HEADER_SIZE, data, sz);
 }
 
 void tcp_bind(Socket *sock, const char *ip, u16 port)
@@ -182,13 +169,12 @@ Socket *tcp_accept(Socket *sock, struct sockaddr_in *distant_addr)
         tcp_close(new_sock);
         return NULL;
     }
+
     if (strncmp(buffer, "ACK", BUFSIZE)) {
         fprintf(stderr, "Invalid packet received: %s\n", buffer);
         tcp_close(new_sock);
         return NULL;
     }
-
-    fprintf(stderr, "Last ACK received, connection established\n");
 
     disassociate_socket(sock);
 
@@ -198,22 +184,25 @@ Socket *tcp_accept(Socket *sock, struct sockaddr_in *distant_addr)
 void tcp_start_transfer(Socket *sock, ulong_t sleep, int count)
 {
     queue_init(&sock->queue);
-    recv_thread_init(&sock->recv_thread, sock);
-    send_thread_init(&sock->send_thread, sock->fd, &sock->queue, sleep, count);
+    recver_init(&sock->recver, sock);
+    sender_init(&sock->sender, sock->fd, &sock->queue, sleep, count);
 }
 
 void tcp_close(Socket *socket)
 {
-    recv_thread_stop(&socket->recv_thread);
+    recver_stop(&socket->recver);
+    sender_stop(&socket->sender);
 
-    /*for (int i = 0; i < 50; i++) {
+    for (int i = 0; i < 50; i++) {
+        send_data(socket, "FIN", 4);
+        send_data(socket, "FIN", 4);
+        send_data(socket, "FIN", 4);
         send_data(socket, "FIN", 4);
         usleep(5);
-    }*/
-
-    system("killall bin/client1*");
+    }
 
     close(socket->fd);
+    free(socket);
 }
 
 ssize_t tcp_recv(Socket *s, char *out, size_t sz)
@@ -227,16 +216,16 @@ void tcp_send(Socket *s, const char *in, size_t sz)
 
     if (sz > DATA_SIZE) return;
 
-    make_packet(packet, in, sz, (seq_t) s->que_nxt);
+    make_packet(packet, in, sz, (seq_t) s->nxt);
 
     pthread_spin_lock(&s->queue.lock);
-    queue_add_entry(&s->queue, packet, s->que_nxt, sz + HEADER_SIZE, 0, 0);
+    queue_add_entry(&s->queue, packet, s->nxt, sz + HEADER_SIZE, 0, 0);
     pthread_spin_unlock(&s->queue.lock);
 
-    s->que_nxt++;
+    s->nxt++;
 }
 
 void tcp_wait(Socket *sock)
 {
-    while (queue_readable(&sock->queue) > 0) usleep(1);
+    while (queue_readable(&sock->queue) > 0) usleep(1000);
 }

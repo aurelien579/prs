@@ -21,11 +21,10 @@ static int send_file(const char *filename, Socket *s)
         return -1;
     }
 
-    tcp_start_transfer(s, 0, 100);
+    tcp_start_transfer(s, 50, 100);
 
-    while ((size = fread(buffer, 1, BUFSIZE, file)) > 0) {
+    while ((size = fread(buffer, 1, BUFSIZE, file)) > 0)
         tcp_send(s, buffer, size);
-    }
 
     tcp_wait(s);
 
@@ -33,6 +32,9 @@ static int send_file(const char *filename, Socket *s)
 
     return 0;
 }
+
+
+#ifdef SRV3
 
 static void *srv3_handler(void *_arg)
 {
@@ -47,38 +49,6 @@ static void *srv3_handler(void *_arg)
     tcp_close(cltsock);
 
     return NULL;
-}
-
-static void srv4(Socket *srvsock)
-{
-    struct sockaddr_in  addr;
-    Socket              *cltsock;
-    char                filename[BUFSIZE];
-
-    cltsock = tcp_accept(srvsock, &addr);
-
-    tcp_recv(cltsock, filename, sizeof(filename));
-    printf("Sending file : %s\n", filename);
-
-    system("killall *client1*");
-
-    tcp_close(cltsock);
-}
-
-static void srv1(Socket *srvsock)
-{
-    struct sockaddr_in  addr;
-    Socket              *cltsock;
-    char                filename[BUFSIZE];
-
-    cltsock = tcp_accept(srvsock, &addr);
-
-    tcp_recv(cltsock, filename, sizeof(filename));
-    printf("Sending file : %s\n", filename);
-
-    send_file(filename, cltsock);
-
-    tcp_close(cltsock);
 }
 
 static void srv3(Socket *srvsock)
@@ -96,6 +66,27 @@ static void srv3(Socket *srvsock)
             pthread_join(clients[i], NULL);
 }
 
+#else
+
+static void srv1(Socket *srvsock)
+{
+    struct sockaddr_in  addr;
+    Socket              *cltsock;
+    char                filename[BUFSIZE];
+
+    cltsock = tcp_accept(srvsock, &addr);
+
+    tcp_recv(cltsock, filename, sizeof(filename));
+    printf("Sending file : %s\n", filename);
+
+    send_file(filename, cltsock);
+
+    tcp_close(cltsock);
+}
+
+#endif
+
+
 int main(int argc, char **argv)
 {
     unsigned short  port;
@@ -111,7 +102,7 @@ int main(int argc, char **argv)
 #ifdef SRV3
     srv3(srvsock);
 #else
-    srv4(srvsock);
+    srv1(srvsock);
 #endif
 
     tcp_close(srvsock);
