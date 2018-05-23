@@ -7,17 +7,16 @@
 
 struct sender
 {
-    int         fd;
     int         running;
     pthread_t   pthread;
     ulong_t     sleep;
     int         count;
-    Queue       *queue;
+    Socket      *sock;
 };
 
 typedef struct sender Sender;
 
-void sender_init(Sender *self, int fd, Queue *queue, ulong_t sleep, int count);
+void sender_init(Sender *self, Socket *sock, ulong_t sleep, int count);
 void sender_stop(Sender *self);
 
 #endif

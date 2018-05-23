@@ -24,8 +24,15 @@ static Socket *tcp_socket_new(int fd)
     memset(sock, 0, sizeof(Socket));
 
     sock->fd = fd;
-    sock->nxt = 1;
-    sock->una = 1;
+    sock->que_nxt = 1;
+    sock->snd_una = 1;
+
+#ifdef SRV3
+    sock->snd_nxt = 1;
+    sock->snd_wnd = INIT_WINDOW;
+    sock->ssthresh= INI_SSTRESH;
+    sock->srtt = INITRTT;
+#endif
 
     return sock;
 }
@@ -185,7 +192,7 @@ void tcp_start_transfer(Socket *sock, ulong_t sleep, int count)
 {
     queue_init(&sock->queue);
     recver_init(&sock->recver, sock);
-    sender_init(&sock->sender, sock->fd, &sock->queue, sleep, count);
+    sender_init(&sock->sender, sock, sleep, count);
 }
 
 void tcp_close(Socket *socket)
@@ -216,16 +223,56 @@ void tcp_send(Socket *s, const char *in, size_t sz)
 
     if (sz > DATA_SIZE) return;
 
-    make_packet(packet, in, sz, (seq_t) s->nxt);
+    make_packet(packet, in, sz, (seq_t) s->que_nxt);
 
     pthread_spin_lock(&s->queue.lock);
-    queue_add_entry(&s->queue, packet, s->nxt, sz + HEADER_SIZE, 0, 0);
+    queue_add_entry(&s->queue, packet, s->que_nxt, sz + HEADER_SIZE, 0, 0);
     pthread_spin_unlock(&s->queue.lock);
 
-    s->nxt++;
+    s->que_nxt++;
+
+#ifdef SRV2
+    if (s->snd_nxt < s->snd_una + s->snd_wnd)
+        tcp_output(s);
+#endif
 }
 
 void tcp_wait(Socket *sock)
 {
     while (queue_readable(&sock->queue) > 0) usleep(1000);
 }
+
+#ifdef SRV2
+void tcp_output(Socket *sock)
+{
+    QueueEntry *entry;
+
+    pthread_spin_lock(&sock->queue.lock);
+
+    for (int i = 0; i < queue_readable(&sock->queue); i++) {
+        entry = queue_get(&sock->queue, sock->queue.r + i);
+
+        if (entry->rtx_usecs == 0) {
+            if (entry->rtx_count != 0 || sock->snd_nxt < sock->snd_una + sock->snd_wnd) {
+                send(sock->fd, entry->packet, entry->size, 0);
+
+                if (entry->rtx_count == 0) {
+                    sock->snd_nxt++;
+                } else {
+                    sock -> snd_wnd = max(MIN_WINDOW, sock->snd_wnd - sock->snd_wnd/4);
+                    if (entry->rtx_count == 1) {
+                        sock->ssthresh = max(SSTHRESH_OFFSET + (int)((sock->snd_nxt-sock->snd_una) / 2),
+                                             MIN_SSTHRESH);
+                    }
+                }
+
+                entry->rtx_count++;
+                entry->rtx_usecs = sock->srtt + K*sock->rttvar;
+                gettimeofday(&entry->tx_time, NULL);
+            }
+        }
+    }
+
+    pthread_spin_unlock(&sock->queue.lock);
+}
+#endif

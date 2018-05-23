@@ -15,8 +15,18 @@
 struct tcp_socket
 {
     int     fd;
-    int     una;
-    int     nxt;
+    int     snd_una;
+    int     que_nxt;
+
+#ifdef SRV2
+    int     snd_wnd;
+    int     snd_nxt;
+    int     ssthresh;
+    ulong_t srtt;
+    ulong_t rttvar;
+    int     previous_ack;
+#endif
+
     Queue   queue;
     Recver  recver;
     Sender  sender;
@@ -36,6 +46,10 @@ void tcp_start_transfer(Socket *sock, ulong_t sleep, int count);
 
 void tcp_send(Socket *s, const char *buffer, size_t sz);
 ssize_t tcp_recv(Socket *s, char *out, size_t sz);
+
+#ifdef SRV2
+void tcp_output(Socket *sock);
+#endif
 
 void tcp_wait(Socket *sock);
 

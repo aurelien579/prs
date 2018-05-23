@@ -34,7 +34,7 @@ static int send_file(const char *filename, Socket *s)
 }
 
 
-#ifdef SRV3
+#ifdef MULTI
 
 static void *srv3_handler(void *_arg)
 {
@@ -99,7 +99,7 @@ int main(int argc, char **argv)
     srvsock = tcp_socket();
     tcp_bind(srvsock, "0.0.0.0", port);
 
-#ifdef SRV3
+#ifdef MULTI
     srv3(srvsock);
 #else
     srv1(srvsock);
